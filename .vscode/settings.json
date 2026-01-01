@@ -1,0 +1,17 @@
+{
+    "cmake.sourceDirectory": "/Users/jenniferumoke/source/BrilliantCode/node_modules/nan",
+    "chatgpt.commentCodeLensEnabled": true,
+
+    // Use the MSVC-initialized shell for terminals and tasks on Windows.
+    "terminal.integrated.defaultProfile.windows": "VSDevCmd (BuildTools 2022)",
+    "terminal.integrated.profiles.windows": {
+        "VSDevCmd (BuildTools 2022)": {
+            "path": "C:/Windows/System32/cmd.exe",
+            "args": [
+                "/k",
+                "\"C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvars64.bat\""
+            ],
+            "icon": "terminal-cmd"
+        }
+    }
+}

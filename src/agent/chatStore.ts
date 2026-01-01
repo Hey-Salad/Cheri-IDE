@@ -6,10 +6,6 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { OpenAIResponseItem } from '../types/chat.js';
 import type { Provider } from './models.js';
 
-// Stored chat session representation in the filesystem
-// Each workspace (working directory) has its own chat store file, identified
-// by a hash of the absolute path. The store file contains multiple chat sessions.
-
 export type StoredChatRuntime = {
   status: 'idle' | 'running' | 'completed' | 'error';
   startedAt?: number;
@@ -17,6 +13,7 @@ export type StoredChatRuntime = {
   updatedAt: number;
 };
 
+// Anthropic conversation item - stores messages in native Anthropic format
 export type AnthropicConversationItem =
   | Anthropic.MessageParam
   | {
@@ -56,6 +53,7 @@ export type StoredChat = {
 const ROOT_DIR = path.join(os.homedir(), '.brilliantcode');
 const SESSIONS_DIR = path.join(ROOT_DIR, 'sessions');
 
+// Persisted file format, versioned for future schema migrations
 const CURRENT_VERSION = 4;
 
 type PersistedSessions = {
@@ -63,19 +61,24 @@ type PersistedSessions = {
   sessions: StoredChat[];
 };
 
+// Remove destructive control characters (backspace handling + non-printables)
 function applyBackspaces(input: string): string {
   let s = String(input ?? '');
+  // Iteratively remove pairs of ".\b" so backspaces are applied
+  // Repeat until no more backspaces can be applied
   let prev: string | null = null;
   while (s !== prev) {
     prev = s;
     s = s.replace(/.[\x08]/g, '');
   }
+  // Drop any remaining stray backspace chars
   s = s.replace(/[\x08]/g, '');
   return s;
 }
 
 function stripOtherControls(input: string): string {
   const s = String(input ?? '');
+  // Keep TAB (09), LF (0A), CR (0D), and printable ASCII 0x20-0x7E
   return s.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
 }
 
@@ -93,6 +96,7 @@ function sanitizeLargeTextBlob(input: any, limit = 12000): string {
   return clampText(stripped, limit);
 }
 
+// Prevent session files from ballooning due to embedded base64 images.
 const MAX_PERSISTED_IMAGE_CHARS = 20_000;
 
 function isBase64DataUrl(value: string): boolean {
@@ -100,6 +104,7 @@ function isBase64DataUrl(value: string): boolean {
 }
 
 function looksLikeBareBase64(value: string): boolean {
+  // Heuristic: long base64-ish string (common in persisted image blocks)
   if (!value || value.length < 2000) return false;
   return /^[A-Za-z0-9+/=\s]+$/.test(value);
 }
@@ -130,6 +135,7 @@ function scrubOpenAIUserContent(content: any): any {
     out.push(part);
   }
 
+  // Ensure at least one input_text exists for compatibility.
   if (!out.some(p => p && typeof p === 'object' && (p as any).type === 'input_text')) {
     out.unshift({ type: 'input_text', text: '' });
   }
@@ -138,6 +144,7 @@ function scrubOpenAIUserContent(content: any): any {
 }
 
 function scrubOpenAIFunctionCallOutput(output: any): any {
+  // Tool outputs may contain arrays of input_image blocks with data:...base64 URLs.
   if (Array.isArray(output)) {
     const hasImage = output.some((p: any) => {
       if (!p || typeof p !== 'object') return false;
@@ -154,6 +161,7 @@ function scrubOpenAIFunctionCallOutput(output: any): any {
     }
   }
 
+  // If output is a big object, scrub embedded data URLs conservatively.
   if (output && typeof output === 'object') {
     const seen = new Set<any>();
     const walk = (v: any, depth: number): any => {
@@ -192,6 +200,7 @@ function scrubAnthropicContentBlocks(content: any): any {
       const data = typeof source?.data === 'string' ? source.data : '';
       const shouldOmit = data && data.length > MAX_PERSISTED_IMAGE_CHARS;
       if (shouldOmit) {
+        // Replace with a text placeholder so the message remains valid for the API.
         out.push({ type: 'text', text: imagePlaceholder('(anthropic image)') });
         continue;
       }
@@ -203,6 +212,7 @@ function scrubAnthropicContentBlocks(content: any): any {
   return out;
 }
 
+// Sanitize OpenAI history items
 const sanitizeOpenAIHistoryItem = (item: OpenAIResponseItem): OpenAIResponseItem => {
   if (!item || typeof item !== 'object') return {} as OpenAIResponseItem;
   const sc = (globalThis as any).structuredClone;
@@ -215,16 +225,21 @@ const sanitizeOpenAIHistoryItem = (item: OpenAIResponseItem): OpenAIResponseItem
     catch { clone = { ...(item as Record<string, any>) } as OpenAIResponseItem; }
   }
 
+  // Remove transient fields that should not persist
   delete (clone as any).timestamp;
 
+  // Sanitize problematic payloads so they can be safely round-tripped
   try {
     const type = String((clone as any).type || '').toLowerCase();
     const role = String((clone as any).role || '').toLowerCase();
 
+    // Scrub huge base64 images from persisted user content
     if (role === 'user' && Array.isArray((clone as any).content)) {
       (clone as any).content = scrubOpenAIUserContent((clone as any).content);
     }
 
+    // Sanitize tool outputs (e.g., read_terminal) that may contain backspaces and control chars
+    // AND prevent persisting huge image data from screenshot/visit_url tool outputs.
     if (type === 'function_call_output') {
       const out = (clone as any).output;
       if (typeof out === 'string') {
@@ -234,6 +249,7 @@ const sanitizeOpenAIHistoryItem = (item: OpenAIResponseItem): OpenAIResponseItem
       }
     }
 
+    // Sanitize tool call arguments to avoid invalid control chars in JSON strings
     if (type === 'function_call') {
       if (typeof (clone as any).arguments === 'string') {
         (clone as any).arguments = sanitizeLargeTextBlob((clone as any).arguments, 8000);
@@ -244,6 +260,7 @@ const sanitizeOpenAIHistoryItem = (item: OpenAIResponseItem): OpenAIResponseItem
   return clone;
 };
 
+// Sanitize Anthropic history items
 const sanitizeAnthropicHistoryItem = (item: AnthropicConversationItem): AnthropicConversationItem => {
   if (!item || typeof item !== 'object') return {} as AnthropicConversationItem;
   const sc = (globalThis as any).structuredClone;
@@ -256,12 +273,15 @@ const sanitizeAnthropicHistoryItem = (item: AnthropicConversationItem): Anthropi
     catch { clone = { ...(item as Record<string, any>) } as AnthropicConversationItem; }
   }
 
+  // Remove transient fields that should not persist
   delete (clone as any).timestamp;
 
+  // Sanitize message blocks + tool result content if present
   try {
     if (Array.isArray((clone as any).content)) {
       (clone as any).content = scrubAnthropicContentBlocks((clone as any).content);
 
+      // If it's a tool_result container, also sanitize tool_result strings.
       if ((clone as any).type === 'tool_result') {
         for (const block of (clone as any).content) {
           if (block?.type === 'tool_result' && typeof block.content === 'string') {
@@ -275,6 +295,7 @@ const sanitizeAnthropicHistoryItem = (item: AnthropicConversationItem): Anthropi
   return clone;
 };
 
+// Provider-aware sanitization
 const sanitizeHistoryItem = (item: OpenAIResponseItem | AnthropicConversationItem, provider: Provider): OpenAIResponseItem | AnthropicConversationItem => {
   if (provider === 'anthropic') {
     return sanitizeAnthropicHistoryItem(item as AnthropicConversationItem);
@@ -428,6 +449,7 @@ async function readFileSafe(filePath: string): Promise<PersistedSessions> {
           .filter((entry: unknown): entry is Record<string, any> => typeof entry === 'object' && entry !== null)
           .map((entry: Record<string, any>) => {
             const rawHistory = Array.isArray(entry.history) ? entry.history : [];
+            // Migration: Default to 'openai' for sessions without provider field (backward compatibility)
             const provider: Provider = entry.provider === 'anthropic' ? 'anthropic' : 'openai';
             return {
               id: typeof entry.id === 'string' && entry.id ? entry.id : safeId(),

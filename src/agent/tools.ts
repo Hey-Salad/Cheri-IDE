@@ -2,7 +2,7 @@
 // exported handler validates inputs, enforces sandbox boundaries, and returns
 // a predictable JSON envelope so the renderer can show progress updates.
 
-import { createFile, createDiff, grepSearch, generateImageFile, waitForDuration, brilliantSearch } from './functions.js';
+import { createFile, createDiff, grepSearch, generateImageFile, waitForDuration, googleCustomSearch } from './functions.js';
 import {
   addTodo,
   updateTodoContent,
@@ -84,6 +84,7 @@ function resolveToolPath(
   const workspaceRoot = normalizedCtx.workspaceRoot;
   const additionalRoot = normalizedCtx.additionalRoot;
 
+  // Absolute paths
   if (path.isAbsolute(raw)) {
     const abs = path.resolve(raw);
     if (normalizedCtx.allowExternal) {
@@ -94,6 +95,7 @@ function resolveToolPath(
     return { ok: false, error: `Path escapes allowed directories: ${inputPath}` };
   }
 
+  // Relative paths with explicit scope
   if (parsed.scope === 'workspace') {
     const abs = path.resolve(workspaceRoot, raw);
     return { ok: true, abs, chosenRoot: 'workspace' };
@@ -104,6 +106,7 @@ function resolveToolPath(
     return { ok: true, abs, chosenRoot: 'additional' };
   }
 
+  // Auto-resolve relative paths
   const absW = path.resolve(workspaceRoot, raw);
   const absA = additionalRoot ? path.resolve(additionalRoot, raw) : null;
 
@@ -114,9 +117,11 @@ function resolveToolPath(
     if (existsW && !existsA) return { ok: true, abs: absW, chosenRoot: 'workspace' };
     if (!existsW && existsA && absA) return { ok: true, abs: absA, chosenRoot: 'additional' };
     if (existsW && existsA) return { ok: true, abs: absW, chosenRoot: 'workspace' };
+    // default fallback
     return { ok: true, abs: absW, chosenRoot: 'workspace' };
   }
 
+  // write/create intent
   if (existsW && !existsA) return { ok: true, abs: absW, chosenRoot: 'workspace' };
   if (!existsW && existsA && absA) return { ok: true, abs: absA, chosenRoot: 'additional' };
   if (existsW && existsA) return { ok: true, abs: absW, chosenRoot: 'workspace' };
@@ -127,6 +132,7 @@ function resolveToolPath(
   const parentExistsA = parentA ? existsSyncSafe(parentA) : false;
 
   if (!parentExistsW && parentExistsA && absA) return { ok: true, abs: absA, chosenRoot: 'additional' };
+  // default
   return { ok: true, abs: absW, chosenRoot: 'workspace' };
 }
 
@@ -261,7 +267,7 @@ const makeGetFileSizeAdapter = (ctx: ToolContext) => async (args: GetFileSizeArg
 // -------------------- grepSearch --------------------
 type GrepSearchArgs = {
   pattern: string;
-  files: string;
+  files: string; // relative glob or directory path; absolute paths rejected
   caseInsensitive?: boolean;
   recursive?: boolean;
   lineNumbers?: boolean;
@@ -272,6 +278,7 @@ type GrepSearchArgs = {
 };
 
 function looksAbsoluteOrRooted(p: string): boolean {
+  // Block absolute POSIX and Windows drive-rooted paths
   return path.isAbsolute(p) || /^[A-Za-z]:[\\/]/.test(p);
 }
 
@@ -445,10 +452,10 @@ const makeGenerateImageAdapter = (ctx: ToolContext) => async (args: GenerateImag
   };
 };
 
-// -------------------- BrilliantAI search --------------------
-type BrilliantAiSearchArgs = { query: string; start?: number };
+// -------------------- Google Custom Search --------------------
+type GoogleSearchArgs = { query: string; start?: number };
 
-async function brilliantAiSearchAdapter(args: BrilliantAiSearchArgs) {
+async function googleSearchAdapter(args: GoogleSearchArgs) {
   const query = String(args?.query ?? '').trim();
   if (!query) return { ok: false, error: 'query is required.' };
 
@@ -456,7 +463,7 @@ async function brilliantAiSearchAdapter(args: BrilliantAiSearchArgs) {
     ? Math.max(1, Math.floor(args.start))
     : 1;
 
-  const result = await brilliantSearch(query, { start });
+  const result = await googleCustomSearch(query, { start });
 
   if (!result.succeeded) {
     return {
@@ -533,6 +540,9 @@ async function waitToolAdapter(args: WaitToolArgs) {
 // -------------------- Tool registry and schema --------------------
 type ToolHandler = (args: any) => Promise<any>;
 
+// Registry consumed by AgentSession. The renderer reuses this map to display
+// activity labels while tool calls are inflight.
+
 type CreateToolHandlersOptions = Partial<ToolContext> & { sessionId?: string | null };
 
 function createToolHandlers(opts: CreateToolHandlersOptions = {}): Record<string, ToolHandler> {
@@ -550,9 +560,10 @@ function createToolHandlers(opts: CreateToolHandlersOptions = {}): Record<string
     read_file: makeReadFileAdapter(ctx),
     get_file_size: makeGetFileSizeAdapter(ctx),
     grep_search: makeGrepSearchAdapter(ctx),
-    google_search: brilliantAiSearchAdapter,
+    google_search: googleSearchAdapter,
     generate_image_tool: makeGenerateImageAdapter(ctx),
 
+    // Session-scoped TODO tools (safe under concurrent sessions)
     add_todo_tool: makeAddTodoAdapter(sessionId),
     update_todo_item_tool: makeUpdateTodoItemAdapter(sessionId),
     update_todo_status_tool: makeUpdateTodoStatusAdapter(sessionId),
@@ -565,6 +576,8 @@ function createToolHandlers(opts: CreateToolHandlersOptions = {}): Record<string
 
 const toolHandlers: Record<string, ToolHandler> = createToolHandlers();
 
+// Schema shared with the Responses API. The Anthropic variant is derived one
+// level lower so we keep a single source of truth for arguments and copy.
 const toolsSchemaOAI = [
   {
     type: 'function',
@@ -645,7 +658,7 @@ const toolsSchemaOAI = [
   {
     type: 'function',
     name: 'google_search',
-    description: 'Perform a web search via Google Custom Search through the BrilliantAI backend and return structured results.',
+    description: 'Perform a web search via Google Custom Search (requires GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID).',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -762,10 +775,12 @@ const toolsSchemaOAI = [
   },
 ];
 
-
+// CommonJS export
 export {
+  // Registry + schema
   createToolHandlers,
   toolHandlers,
   toolsSchemaOAI,
+  // Alias for existing imports
   toolsSchemaOAI as toolsSchema,
 };

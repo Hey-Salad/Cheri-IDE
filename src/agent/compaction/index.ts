@@ -17,7 +17,7 @@
  * - Compaction is incremental (can build on previous summaries)
  */
 
-
+// Types
 export type {
   CompactionConfig,
   CompactionStrategy,
@@ -37,7 +37,7 @@ export {
   isSummaryMessage,
 } from './types.js';
 
-
+// Token estimation
 export {
   estimateTokensFromString,
   estimateTokensFromValue,
@@ -51,6 +51,7 @@ export {
   tokensToRemove,
 } from './tokenEstimation.js';
 
+// OpenAI compaction
 export {
   segmentOpenAIIntoTurns,
   flattenOpenAITurns,
@@ -62,6 +63,7 @@ export {
 
 export type { OpenAISummarizer } from './openaiCompaction.js';
 
+// Anthropic compaction
 export {
   segmentAnthropicIntoTurns,
   flattenAnthropicTurns,
@@ -73,6 +75,7 @@ export {
 
 export type { AnthropicSummarizer } from './anthropicCompaction.js';
 
+// Summarizers
 export {
   createOpenAISummarizer,
   createAnthropicSummarizer,

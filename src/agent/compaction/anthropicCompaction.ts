@@ -26,11 +26,16 @@ import {
 // Turn Segmentation
 // ============================================================================
 
+/**
+ * Check if an item is a user message (not a tool result).
+ */
 function isUserMessage(item: AnthropicConversationItem): boolean {
   if ((item as any).role !== 'user') return false;
   
+  // Check if it's a tool result (which also has role: user in Anthropic format)
   const content = (item as any).content;
   if (Array.isArray(content)) {
+    // If ALL blocks are tool_result, it's not a user message
     const allToolResults = content.every((block: any) => block?.type === 'tool_result');
     if (allToolResults && content.length > 0) return false;
   }
@@ -38,6 +43,9 @@ function isUserMessage(item: AnthropicConversationItem): boolean {
   return true;
 }
 
+/**
+ * Check if an item is a tool result.
+ */
 function isToolResult(item: AnthropicConversationItem): boolean {
   if ((item as any).role !== 'user') return false;
   
@@ -49,14 +57,22 @@ function isToolResult(item: AnthropicConversationItem): boolean {
   return false;
 }
 
+/**
+ * Check if an item is an assistant message.
+ */
 function isAssistantMessage(item: AnthropicConversationItem): boolean {
   return (item as any).role === 'assistant';
 }
 
+/**
+ * Segment Anthropic history into turns.
+ * A turn = one user message + all subsequent assistant/tool items until the next user message.
+ */
 export function segmentAnthropicIntoTurns(history: AnthropicConversationItem[]): AnthropicTurn[] {
   const turns: AnthropicTurn[] = [];
   let currentTurn: AnthropicTurn | null = null;
 
+  // Debug counters
   let userMessageCount = 0;
   let assistantMessageCount = 0;
   let toolResultCount = 0;
@@ -66,6 +82,7 @@ export function segmentAnthropicIntoTurns(history: AnthropicConversationItem[]):
   for (const item of history) {
     if (isUserMessage(item)) {
       userMessageCount++;
+      // Start a new turn
       if (currentTurn) {
         currentTurn.estimatedTokens = estimateAnthropicTurnTokens(currentTurn);
         turns.push(currentTurn);
@@ -83,12 +100,14 @@ export function segmentAnthropicIntoTurns(history: AnthropicConversationItem[]):
       currentTurn.assistantAndTools.push(item);
     } else if (!currentTurn) {
       orphanCount++;
+      // Orphan item before any user message - create synthetic turn
       currentTurn = {
         userMessage: { role: 'user', content: [{ type: 'text', text: '[system initialization]' }] } as AnthropicConversationItem,
         assistantAndTools: [item],
         estimatedTokens: 0,
       };
     } else {
+      // Item that doesn't match any category but we have a current turn
       unclassifiedCount++;
       console.warn('[Anthropic Compaction] Unclassified item:', {
         role: (item as any).role,
@@ -100,6 +119,7 @@ export function segmentAnthropicIntoTurns(history: AnthropicConversationItem[]):
     }
   }
 
+  // Don't forget the last turn
   if (currentTurn) {
     currentTurn.estimatedTokens = estimateAnthropicTurnTokens(currentTurn);
     turns.push(currentTurn);
@@ -113,6 +133,9 @@ export function segmentAnthropicIntoTurns(history: AnthropicConversationItem[]):
   return turns;
 }
 
+/**
+ * Flatten turns back into a history array.
+ */
 export function flattenAnthropicTurns(turns: AnthropicTurn[]): AnthropicConversationItem[] {
   const history: AnthropicConversationItem[] = [];
   for (const turn of turns) {
@@ -127,11 +150,17 @@ export function flattenAnthropicTurns(turns: AnthropicTurn[]): AnthropicConversa
 // ============================================================================
 
 interface CompactionTargets {
+  /** Turns to summarize (oldest) */
   toSummarize: AnthropicTurn[];
+  /** Turns to preserve (most recent) */
   toPreserve: AnthropicTurn[];
+  /** Existing summary turn if present (will be merged) */
   existingSummary: AnthropicTurn | null;
 }
 
+/**
+ * Identify which turns to summarize vs preserve.
+ */
 function identifyCompactionTargets(
   turns: AnthropicTurn[],
   config: CompactionConfig,
@@ -149,6 +178,8 @@ function identifyCompactionTargets(
 
   let workingTurns = turns;
 
+  // If the first turn is a legacy summary (user role with summary marker),
+  // treat it as an existing summary and exclude it from further compaction.
   const firstTurn = workingTurns[0];
   const firstContent = extractUserMessageText(firstTurn.userMessage);
   if (isSummaryMessage(firstContent)) {
@@ -160,6 +191,7 @@ function identifyCompactionTargets(
     return result;
   }
 
+  // Always preserve the last N turns (or fewer if there aren't enough).
   const preserveCount = Math.max(
     0,
     Math.min(config.preserveLastTurns, workingTurns.length)
@@ -176,6 +208,9 @@ function identifyCompactionTargets(
 // Text Extraction for Summarization
 // ============================================================================
 
+/**
+ * Extract text content from a user message.
+ */
 function extractUserMessageText(item: AnthropicConversationItem): string {
   const content = (item as any).content;
   
@@ -216,6 +251,9 @@ function pickImportantFields(obj: any): Record<string, any> {
   return out;
 }
 
+/**
+ * Safely stringify values for summarization.
+ */
 function safeCompactStringify(value: any, maxLen = 1200): string {
   const seen = new Set<any>();
   try {
@@ -241,6 +279,9 @@ function safeCompactStringify(value: any, maxLen = 1200): string {
   }
 }
 
+/**
+ * Extract text from an assistant message or tool result.
+ */
 function extractAssistantText(item: AnthropicConversationItem): string {
   const content = (item as any).content;
   const parts: string[] = [];
@@ -258,6 +299,7 @@ function extractAssistantText(item: AnthropicConversationItem): string {
         break;
 
       case 'thinking':
+        // Include thinking summary but truncated
         if (block.thinking) {
           parts.push(`[Thinking] ${(block.thinking as string).slice(0, 300)}`);
         }
@@ -289,6 +331,9 @@ function extractAssistantText(item: AnthropicConversationItem): string {
   return parts.join('\n');
 }
 
+/**
+ * Format turns for summarization prompt.
+ */
 export function formatTurnsForSummary(
   turns: AnthropicTurn[],
   options: SummarizerOptions = DEFAULT_SUMMARIZER_OPTIONS
@@ -301,17 +346,20 @@ export function formatTurnsForSummary(
     const turn = turns[i];
     const turnParts: string[] = [];
 
+    // User message
     const userText = extractUserMessageText(turn.userMessage);
     if (userText && !isSummaryMessage(userText)) {
       turnParts.push(`USER: ${userText.slice(0, 500)}`);
     }
 
+    // Assistant and tools
     for (const item of turn.assistantAndTools) {
       const text = extractAssistantText(item);
       if (text) {
         turnParts.push(text.slice(0, 800));
       }
 
+      // Collect tool names and file paths from content blocks
       const content = (item as any).content;
       if (Array.isArray(content)) {
         for (const block of content) {
@@ -335,6 +383,7 @@ export function formatTurnsForSummary(
 
   let result = parts.join('\n\n');
 
+  // Add metadata
   if (options.includeToolNames && toolNames.size > 0) {
     result += `\n\n[Tools used: ${Array.from(toolNames).join(', ')}]`;
   }
@@ -358,6 +407,7 @@ export function formatTurnsForSummary(
 function createSummaryMessage(summaryText: string, existingSummary?: string): AnthropicConversationItem {
   let content = SUMMARY_MARKER_PREFIX;
   
+  // If there was an existing summary, note that we're building on it
   if (existingSummary) {
     content += '[Building on previous summary]\n\n';
   }
@@ -473,10 +523,12 @@ async function compactAnthropicHistoryOnce(
     const newHistory: AnthropicConversationItem[] = [];
     newHistory.push(rollingSummary);
 
+    // Keep only the user messages from summarized turns.
     for (const t of toSummarize) {
       newHistory.push(t.userMessage);
     }
 
+    // Keep the most recent turns intact.
     for (const t of toPreserve) {
       newHistory.push(t.userMessage);
       newHistory.push(...t.assistantAndTools);
@@ -503,6 +555,7 @@ async function compactAnthropicHistoryPerTurnOnce(
   config: CompactionConfig,
   summarizer: AnthropicSummarizer
 ): Promise<AnthropicCompactionResult> {
+  // Check if compaction is needed
   const metrics = estimateAnthropicHistoryTokens(history);
   const originalTokens = metrics.totalTokens;
 
@@ -518,9 +571,12 @@ async function compactAnthropicHistoryPerTurnOnce(
 
   console.log(`[Anthropic Compaction] Starting compaction. Current tokens: ${originalTokens}, target: ${config.targetContextTokens}`);
 
+  // Segment into turns
   const turns = segmentAnthropicIntoTurns(history);
 
+  // Minimum turns required to attempt compaction (need at least 1 to summarize + 1 to keep)
   const MIN_TURNS_FOR_COMPACTION = 2;
+  // Minimum turns to always keep (even if preserveLastTurns is higher)
   const MIN_TURNS_TO_PRESERVE = 1;
 
   if (turns.length < MIN_TURNS_FOR_COMPACTION) {
@@ -534,6 +590,8 @@ async function compactAnthropicHistoryPerTurnOnce(
     };
   }
 
+  // Dynamically adjust preserveLastTurns if we have fewer turns than configured.
+  // We need at least 1 turn to summarize, so preserve at most (turns - 1).
   const effectivePreserveCount = Math.max(
     MIN_TURNS_TO_PRESERVE,
     Math.min(config.preserveLastTurns, turns.length - 1)
@@ -542,6 +600,7 @@ async function compactAnthropicHistoryPerTurnOnce(
   console.log(`[Anthropic Compaction] Adjusting preserve count: configured=${config.preserveLastTurns}, ` +
     `effective=${effectivePreserveCount}, totalTurns=${turns.length}`);
 
+  // Log turn sizes to help debug
   for (let i = 0; i < turns.length; i++) {
     const turn = turns[i];
     console.log(`[Anthropic Compaction] Turn ${i + 1}: ${turn.estimatedTokens} tokens, ` +
@@ -566,24 +625,28 @@ async function compactAnthropicHistoryPerTurnOnce(
 
   const newTurns: AnthropicTurn[] = [];
 
+  // Preserve any legacy top-level summary turn (user role with marker) at the front.
   if (targets.existingSummary) {
     newTurns.push(targets.existingSummary);
   }
 
   let turnsSummarized = 0;
 
+  // Summarize each older turn individually while preserving its user message.
   for (const turn of targets.toSummarize) {
     if (!turn.assistantAndTools.length) {
       newTurns.push(turn);
       continue;
     }
 
+    // Separate any existing per-turn assistant summary from the rest of the content.
     let existingSummaryText: string | undefined;
     const assistantWithoutSummary: AnthropicConversationItem[] = [];
 
     for (const item of turn.assistantAndTools) {
       const assistantText = extractAssistantText(item);
       if (!existingSummaryText && assistantText && isSummaryMessage(assistantText)) {
+        // Strip the marker prefix before passing into the summarizer.
         existingSummaryText = assistantText.replace(SUMMARY_MARKER_PREFIX, '').trim();
         continue;
       }
@@ -591,6 +654,7 @@ async function compactAnthropicHistoryPerTurnOnce(
     }
 
     if (!assistantWithoutSummary.length) {
+      // Nothing new to summarize for this turn; keep it as-is.
       newTurns.push(turn);
       continue;
     }
@@ -623,10 +687,12 @@ async function compactAnthropicHistoryPerTurnOnce(
     turnsSummarized++;
   }
 
+  // Append preserved recent turns unchanged.
   for (const turn of targets.toPreserve) {
     newTurns.push(turn);
   }
 
+  // If we didn't actually summarize anything, avoid rewriting history/persisting no-ops.
   if (turnsSummarized === 0) {
     return {
       history,
@@ -650,10 +716,15 @@ async function compactAnthropicHistoryPerTurnOnce(
     turnsSummarized,
     originalTokens,
     newTokens,
+    // Per-turn summaries are created; there is no single global summary string.
     summaryText: undefined,
   };
 }
 
+/**
+ * Compact Anthropic history with bounded iterative passes until we reach the
+ * target token threshold or can no longer make progress.
+ */
 export async function compactAnthropicHistory(
   history: AnthropicConversationItem[],
   config: CompactionConfig = DEFAULT_ANTHROPIC_COMPACTION_CONFIG,
@@ -734,6 +805,9 @@ export async function compactAnthropicHistory(
   };
 }
 
+/**
+ * Check if Anthropic history needs compaction.
+ */
 export function needsAnthropicCompaction(
   history: AnthropicConversationItem[],
   config: CompactionConfig = DEFAULT_ANTHROPIC_COMPACTION_CONFIG
@@ -743,6 +817,9 @@ export function needsAnthropicCompaction(
   return metrics.totalTokens > config.targetContextTokens;
 }
 
+/**
+ * Get token metrics for Anthropic history.
+ */
 export function getAnthropicMetrics(history: AnthropicConversationItem[]) {
   return estimateAnthropicHistoryTokens(history);
 }

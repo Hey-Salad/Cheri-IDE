@@ -1,0 +1,39 @@
+diff --git a/node_modules/electron-rebuild/lib/src/clang-fetcher.js b/node_modules/electron-rebuild/lib/src/clang-fetcher.js
+index ed9243f..18adc1f 100644
+--- a/node_modules/electron-rebuild/lib/src/clang-fetcher.js
++++ b/node_modules/electron-rebuild/lib/src/clang-fetcher.js
+@@ -65,7 +65,12 @@ async function getClangEnvironmentVars(electronVersion, targetArch) {
+     if (process.platform === 'darwin') {
+         clangArgs.push('-isysroot', getSDKRoot());
+     }
+-    if (semver_1.default.major(electronVersion) >= 20) {
++    // Ensure modern C++ standard for recent Electron. Node 22+/V8 requires C++20.
++    const major = semver_1.default.major(electronVersion);
++    if (major >= 34) {
++        cxxflags.push('-std=c++20');
++    }
++    else if (major >= 20) {
+         cxxflags.push('-std=c++17');
+     }
+     const gypArgs = [];
+diff --git a/node_modules/electron-rebuild/lib/src/module-type/node-gyp.js b/node_modules/electron-rebuild/lib/src/module-type/node-gyp.js
+index 8fd6878..d893c0a 100644
+--- a/node_modules/electron-rebuild/lib/src/module-type/node-gyp.js
++++ b/node_modules/electron-rebuild/lib/src/module-type/node-gyp.js
+@@ -76,7 +76,15 @@ class NodeGyp extends _1.NativeModule {
+         }
+         let env;
+         const extraNodeGypArgs = [];
+-        if (semver_1.default.major(this.rebuilder.electronVersion) >= 20) {
++        // Electron 37+ (Node 22 / V8 12.4+) requires C++20 to build addons.
++        // Older Electron versions (20+) needed C++17. Prefer the newer standard
++        // when targeting modern Electron to avoid V8 header errors like
++        // "C++20 or later required".
++        const major = semver_1.default.major(this.rebuilder.electronVersion);
++        if (major >= 34) {
++            process.env.CXXFLAGS = '-std=c++20';
++        }
++        else if (major >= 20) {
+             process.env.CXXFLAGS = '-std=c++17';
+         }
+         if (this.rebuilder.useElectronClang) {

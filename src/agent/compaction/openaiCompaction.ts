@@ -23,6 +23,10 @@ import {
   estimateTokensFromString,
 } from './tokenEstimation.js';
 
+// ============================================================================
+// Turn Segmentation
+// ============================================================================
+
 /**
  * Check if an item is a user message (not a tool result).
  */
@@ -56,6 +60,7 @@ export function segmentOpenAIIntoTurns(history: OpenAIResponseItem[]): OpenAITur
 
   for (const item of history) {
     if (isUserMessage(item)) {
+      // Start a new turn
       if (currentTurn) {
         currentTurn.estimatedTokens = estimateOpenAITurnTokens(currentTurn);
         turns.push(currentTurn);
@@ -66,8 +71,11 @@ export function segmentOpenAIIntoTurns(history: OpenAIResponseItem[]): OpenAITur
         estimatedTokens: 0,
       };
     } else if (currentTurn && isAssistantOrTool(item)) {
+      // Add to current turn
       currentTurn.assistantAndTools.push(item);
     } else if (!currentTurn) {
+      // Orphan assistant/tool item before any user message
+      // Create a synthetic turn with empty user message
       currentTurn = {
         userMessage: { role: 'user', content: '[system initialization]' } as OpenAIResponseItem,
         assistantAndTools: [item],
@@ -101,8 +109,11 @@ export function flattenOpenAITurns(turns: OpenAITurn[]): OpenAIResponseItem[] {
 // ============================================================================
 
 interface CompactionTargets {
+  /** Turns to summarize (oldest) */
   toSummarize: OpenAITurn[];
+  /** Turns to preserve (most recent) */
   toPreserve: OpenAITurn[];
+  /** Existing summary turn if present (will be merged) */
   existingSummary: OpenAITurn | null;
 }
 
@@ -126,6 +137,8 @@ function identifyCompactionTargets(
 
   let workingTurns = turns;
 
+  // If the first turn is a legacy summary (user role with summary marker),
+  // treat it as an existing summary and exclude it from further compaction.
   const firstTurn = workingTurns[0];
   const firstContent = extractUserMessageText(firstTurn.userMessage);
   if (isSummaryMessage(firstContent)) {
@@ -137,6 +150,7 @@ function identifyCompactionTargets(
     return result;
   }
 
+  // Always preserve the last N turns (or fewer if there aren't enough).
   const preserveCount = Math.max(
     0,
     Math.min(config.preserveLastTurns, workingTurns.length)
@@ -205,6 +219,7 @@ function pickImportantFields(obj: any): Record<string, any> {
     }
   }
 
+  // Provide some useful derived hints for diffs/creates without copying blobs
   if (typeof (obj as any).content === 'string') out.contentChars = (obj as any).content.length;
   if (typeof (obj as any).oldText === 'string') out.oldTextChars = (obj as any).oldText.length;
   if (typeof (obj as any).newText === 'string') out.newTextChars = (obj as any).newText.length;
@@ -245,6 +260,7 @@ function safeCompactStringify(value: any, maxLen = 1200): string {
 function describeToolOutput(output: any): string {
   if (typeof output === 'string') {
     const trimmed = output.trim();
+    // Keep errors prominent, but still clamp
     if (trimmed.toLowerCase().startsWith('error')) {
       return trimmed.slice(0, 800);
     }
@@ -266,6 +282,7 @@ function describeToolOutput(output: any): string {
   }
 
   if (output && typeof output === 'object') {
+    // Keep only a small subset when possible
     const picked = pickImportantFields(output);
     const hasPicked = Object.keys(picked).length > 0;
     return safeCompactStringify(hasPicked ? picked : output, 1200);
@@ -336,21 +353,25 @@ export function formatTurnsForSummary(
     const turn = turns[i];
     const turnParts: string[] = [];
 
+    // User message
     const userText = extractUserMessageText(turn.userMessage);
     if (userText && !isSummaryMessage(userText)) {
       turnParts.push(`USER: ${userText.slice(0, 500)}`);
     }
 
+    // Assistant and tools
     for (const item of turn.assistantAndTools) {
       const text = extractAssistantText(item);
       if (text) {
         turnParts.push(text.slice(0, 800));
       }
 
+      // Collect tool names
       if (options.includeToolNames && item.type === 'function_call' && item.name) {
         toolNames.add(item.name);
       }
 
+      // Collect file paths from tool arguments (avoid parsing huge blobs)
       if (options.includeFilePaths && item.type === 'function_call') {
         try {
           let args: any = null;
@@ -372,6 +393,7 @@ export function formatTurnsForSummary(
 
   let result = parts.join('\n\n');
 
+  // Add metadata
   if (options.includeToolNames && toolNames.size > 0) {
     result += `\n\n[Tools used: ${Array.from(toolNames).join(', ')}]`;
   }
@@ -395,6 +417,7 @@ export function formatTurnsForSummary(
 function createSummaryMessage(summaryText: string, existingSummary?: string): OpenAIResponseItem {
   let content = SUMMARY_MARKER_PREFIX;
   
+  // If there was an existing summary, note that we're building on it
   if (existingSummary) {
     content += '[Building on previous summary]\n\n';
   }
@@ -495,6 +518,8 @@ async function compactOpenAIHistoryOnce(
       return { history, compacted: false, turnsSummarized: 0, originalTokens, newTokens: originalTokens };
     }
 
+    // Build one rolling summary from all older turns.
+    // (We preserve user messages separately in the compacted history.)
     const hasAnyAssistantOrTools = toSummarize.some(t => t.assistantAndTools && t.assistantAndTools.length > 0);
     if (!hasAnyAssistantOrTools) {
       return { history, compacted: false, turnsSummarized: 0, originalTokens, newTokens: originalTokens };
@@ -513,10 +538,12 @@ async function compactOpenAIHistoryOnce(
     const newHistory: OpenAIResponseItem[] = [];
     newHistory.push(rollingSummary);
 
+    // Keep only the user messages from summarized turns.
     for (const t of toSummarize) {
       newHistory.push(t.userMessage);
     }
 
+    // Keep the most recent turns intact.
     for (const t of toPreserve) {
       newHistory.push(t.userMessage);
       newHistory.push(...t.assistantAndTools);
@@ -535,6 +562,7 @@ async function compactOpenAIHistoryOnce(
     };
   }
 
+  // Default: per-turn compaction (single pass)
   return await compactOpenAIHistoryPerTurnOnce(history, config, summarizer);
 }
 
@@ -543,6 +571,7 @@ async function compactOpenAIHistoryPerTurnOnce(
   config: CompactionConfig,
   summarizer: OpenAISummarizer
 ): Promise<OpenAICompactionResult> {
+  // Check if compaction is needed
   const metrics = estimateOpenAIHistoryTokens(history);
   const originalTokens = metrics.totalTokens;
 
@@ -558,9 +587,12 @@ async function compactOpenAIHistoryPerTurnOnce(
 
   console.log(`[OpenAI Compaction] Starting compaction. Current tokens: ${originalTokens}, target: ${config.targetContextTokens}`);
 
+  // Segment into turns
   const turns = segmentOpenAIIntoTurns(history);
 
+  // Minimum turns required to attempt compaction (need at least 1 to summarize + 1 to keep)
   const MIN_TURNS_FOR_COMPACTION = 2;
+  // Minimum turns to always keep (even if preserveLastTurns is higher)
   const MIN_TURNS_TO_PRESERVE = 1;
 
   if (turns.length < MIN_TURNS_FOR_COMPACTION) {
@@ -574,6 +606,8 @@ async function compactOpenAIHistoryPerTurnOnce(
     };
   }
 
+  // Dynamically adjust preserveLastTurns if we have fewer turns than configured.
+  // We need at least 1 turn to summarize, so preserve at most (turns - 1).
   const effectivePreserveCount = Math.max(
     MIN_TURNS_TO_PRESERVE,
     Math.min(config.preserveLastTurns, turns.length - 1)
@@ -600,24 +634,28 @@ async function compactOpenAIHistoryPerTurnOnce(
 
   const newTurns: OpenAITurn[] = [];
 
+  // Preserve any legacy top-level summary turn (user role with marker) at the front.
   if (targets.existingSummary) {
     newTurns.push(targets.existingSummary);
   }
 
   let turnsSummarized = 0;
 
+  // Summarize each older turn individually while preserving its user message.
   for (const turn of targets.toSummarize) {
     if (!turn.assistantAndTools.length) {
       newTurns.push(turn);
       continue;
     }
 
+    // Separate any existing per-turn assistant summary from the rest of the content.
     let existingSummaryText: string | undefined;
     const assistantWithoutSummary: OpenAIResponseItem[] = [];
 
     for (const item of turn.assistantAndTools) {
       const assistantText = extractAssistantText(item);
       if (!existingSummaryText && assistantText && isSummaryMessage(assistantText)) {
+        // Strip the marker prefix before passing into the summarizer.
         existingSummaryText = assistantText.replace(SUMMARY_MARKER_PREFIX, '').trim();
         continue;
       }
@@ -625,6 +663,7 @@ async function compactOpenAIHistoryPerTurnOnce(
     }
 
     if (!assistantWithoutSummary.length) {
+      // Nothing new to summarize for this turn; keep it as-is.
       newTurns.push(turn);
       continue;
     }
@@ -657,10 +696,12 @@ async function compactOpenAIHistoryPerTurnOnce(
     turnsSummarized++;
   }
 
+  // Append preserved recent turns unchanged.
   for (const turn of targets.toPreserve) {
     newTurns.push(turn);
   }
 
+  // If we didn't actually summarize anything, avoid rewriting history/persisting no-ops.
   if (turnsSummarized === 0) {
     return {
       history,
@@ -684,6 +725,7 @@ async function compactOpenAIHistoryPerTurnOnce(
     turnsSummarized,
     originalTokens,
     newTokens,
+    // Per-turn summaries are created; there is no single global summary string.
     summaryText: undefined,
   };
 }
@@ -731,6 +773,7 @@ export async function compactOpenAIHistory(
     return { history: currentHistory, tokens: currentTokens, turnsSummarized: totalTurnsSummarized, summaryText: lastSummaryText };
   };
 
+  // Adaptive: try per-turn first, then fall back to rolling summary once if still above target.
   if (config.strategy === 'adaptive') {
     const perTurn = await runIterative(history, { ...config, strategy: 'per_turn' });
 
@@ -745,6 +788,7 @@ export async function compactOpenAIHistory(
       };
     }
 
+    // If per-turn didn't get us under target, attempt a rolling-summary pass (bounded).
     const rollingCfg: CompactionConfig = { ...config, strategy: 'rolling_summary', maxIterations: 1 };
     const rolling = await runIterative(perTurn.history, rollingCfg);
 
@@ -760,6 +804,7 @@ export async function compactOpenAIHistory(
     };
   }
 
+  // Non-adaptive: run iterative passes using the requested strategy.
   const out = await runIterative(history, config);
 
   return {

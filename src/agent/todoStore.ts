@@ -17,12 +17,14 @@ type SessionTodoState = {
 const sessionStores = new Map<string, SessionTodoState>();
 
 const STATUS_ALIASES: Record<string, TodoStatus> = {
+  // todo
   todo: 'todo',
   'to-do': 'todo',
   backlog: 'todo',
   pending: 'todo',
   open: 'todo',
 
+  // in_progress
   in_progress: 'in_progress',
   'in progress': 'in_progress',
   progress: 'in_progress',
@@ -32,6 +34,7 @@ const STATUS_ALIASES: Record<string, TodoStatus> = {
   wip: 'in_progress',
   active: 'in_progress',
 
+  // done
   done: 'done',
   complete: 'done',
   completed: 'done',

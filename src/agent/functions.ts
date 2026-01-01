@@ -5,7 +5,7 @@ import { access as fsAccess } from 'node:fs/promises';
 import * as path from 'node:path';
 import { spawn } from 'node:child_process';
 import { AzureOpenAI, OpenAI } from 'openai';
-import * as authService from '../services/auth-service.js';
+import * as apiKeys from '../services/api-keys.js';
 type SpawnOptions = import('child_process').SpawnOptions;
 
 // Low-level helpers invoked by tool adapters. These keep the logic focused on
@@ -178,8 +178,6 @@ async function waitForDuration(durationMs: number): Promise<TaskResult & { waite
         clampedMs: waitLimit && capped < ms ? waitLimit : undefined,
     };
 }
-const BRILLIANT_AI_HEADER = 'BrilliantCode';
-
 function getFirstEnv(...keys: (string | undefined)[]): string {
     for (const key of keys) {
         if (!key) continue;
@@ -191,47 +189,8 @@ function getFirstEnv(...keys: (string | undefined)[]): string {
     return '';
 }
 
-function resolveBrilliantBaseUrl(): string {
-    const raw = getFirstEnv('BRILLIANT_AI_IMAGE_ENDPOINT', 'BRILLIANT_AI_ENDPOINT');
-    if (!raw) return '';
-    const trimmed = raw.replace(/\/+$/, '');
-    return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
-}
-
 function extractStatusCode(error: any): number | undefined {
     return error?.status ?? error?.statusCode ?? error?.response?.status;
-}
-
-async function runWithBrilliantImageClient<T>(
-    invoke: (client: OpenAI) => Promise<T> | T,
-    retries = 1
-): Promise<T> {
-    const baseURL = resolveBrilliantBaseUrl();
-    if (!baseURL) {
-        throw new Error('BRILLIANT_AI_ENDPOINT is not configured.');
-    }
-
-    const token = await authService.ensureValidAccessToken();
-    const origin = getFirstEnv('BRILLIANT_AI_ORIGIN') || 'https://brilliantai.co';
-    const client = new OpenAI({
-        apiKey: token,
-        baseURL,
-        defaultHeaders: {
-            'X-Client-App': BRILLIANT_AI_HEADER,
-            ...(origin ? { Origin: origin } : {}),
-        },
-    });
-
-    try {
-        return await Promise.resolve(invoke(client));
-    } catch (error: any) {
-        const status = extractStatusCode(error);
-        if (status === 401 && retries > 0) {
-            await authService.refreshTokens();
-            return runWithBrilliantImageClient(invoke, retries - 1);
-        }
-        throw error;
-    }
 }
 
 let cachedAzureImageClient: AzureOpenAI | null = null;
@@ -317,37 +276,33 @@ async function generateImageFile(
         const dir = path.dirname(targetPath);
         await fs.mkdir(dir, { recursive: true });
 
-        const brilliantBase = resolveBrilliantBaseUrl();
         let result:
             | Awaited<ReturnType<OpenAI['images']['generate']>>
             | Awaited<ReturnType<AzureOpenAI['images']['generate']>>;
 
-        if (brilliantBase) {
-            const model =
-                getFirstEnv('BRILLIANT_AI_IMAGE_MODEL', 'BRILLIANT_AI_IMAGE_DEPLOYMENT', 'BRILLIANT_AI_IMAGE_NAME')
-                || 'gpt-image-1.5';
-
-            result = await runWithBrilliantImageClient((client) =>
-                client.images.generate({
-                    model,
-                    prompt: trimmedPrompt,
-                    ...(options.size ? { size: options.size } : {}),
-                    ...(options.quality ? { quality: options.quality } : {}),
-                    response_format: 'b64_json',
-                }),
-            );
+        const { key: openaiKey } = await apiKeys.getApiKey('openai');
+        if (openaiKey) {
+            const model = getFirstEnv('OPENAI_IMAGE_MODEL') || 'gpt-image-1';
+            const client = new OpenAI({ apiKey: openaiKey });
+            result = await client.images.generate({
+                model,
+                prompt: trimmedPrompt,
+                ...(options.size ? { size: options.size } : {}),
+                ...(options.quality ? { quality: options.quality } : {}),
+                response_format: 'b64_json',
+            });
         } else {
             const azureClient = getAzureImageClient();
             if (!azureClient) {
                 return {
                     succeeded: false,
-                    error: 'Image endpoint/key not configured. Set BRILLIANT_AI_* or AZURE_OPENAI_* image credentials.',
+                    error: 'Image generation is not configured. Set OPENAI_API_KEY (recommended) or AZURE_OPENAI_* image credentials.',
                 };
             }
 
             const model =
                 getFirstEnv('AZURE_OPENAI_IMAGE_DEPLOYMENT', 'AZURE_OPENAI_IMAGE_MODEL', 'AZURE_OPENAI_IMAGE_NAME')
-                || 'gpt-image-1.5';
+                || 'gpt-image-1';
 
             result = await azureClient.images.generate({
                 model,
@@ -383,89 +338,62 @@ async function generateImageFile(
     }
 }
 
-type BrilliantSearchOptions = { start?: number };
+type GoogleSearchOptions = { start?: number };
 
-async function brilliantSearch(
+async function googleCustomSearch(
     query: string,
-    options: BrilliantSearchOptions = {},
+    options: GoogleSearchOptions = {},
 ): Promise<TaskResult & { query?: string; start?: number; results?: any; raw?: any }> {
     const trimmed = (query ?? '').trim();
     if (!trimmed) {
         return { succeeded: false, error: 'query is required.' };
     }
 
-    const baseURL = resolveBrilliantBaseUrl();
-    if (!baseURL) {
-        return { succeeded: false, error: 'BRILLIANT_AI_ENDPOINT is not configured.' };
+    const apiKey = getFirstEnv('GOOGLE_CSE_API_KEY', 'GOOGLE_API_KEY');
+    const cx = getFirstEnv('GOOGLE_CSE_ID', 'GOOGLE_CSE_CX', 'GOOGLE_CSE_ENGINE_ID');
+    if (!apiKey || !cx) {
+        return {
+            succeeded: false,
+            error: 'Google Custom Search is not configured. Set GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID.',
+        };
     }
 
     const start = Number.isFinite(options.start as number)
         ? Math.max(1, Math.floor(options.start as number))
         : 1;
 
-    const origin = getFirstEnv('BRILLIANT_AI_ORIGIN') || 'https://brilliantai.co';
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.searchParams.set('key', apiKey);
+    url.searchParams.set('cx', cx);
+    url.searchParams.set('q', trimmed);
+    url.searchParams.set('start', String(start));
 
-    let lastError: any = null;
-    let token: string | null = null;
+    try {
+        const response = await fetch(url.toString(), { method: 'GET' });
+        const bodyText = await response.text().catch(() => '');
+        const json = (() => {
+            try { return bodyText ? JSON.parse(bodyText) : null; } catch { return null; }
+        })();
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            if (!token || attempt > 0) {
-                token = await authService.ensureValidAccessToken();
-            }
-
-            const url = `${baseURL.replace(/\/+$/, '')}/search?` +
-                new URLSearchParams({ query: trimmed, start: String(start) }).toString();
-
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'X-Client-App': BRILLIANT_AI_HEADER,
-                    ...(origin ? { Origin: origin } : {}),
-                },
-            });
-
-            if (response.status === 401 && attempt === 0) {
-                await authService.refreshTokens();
-                continue;
-            }
-
-            if (!response.ok) {
-                const bodyText = await response.text().catch(() => '');
-                const snippet = bodyText ? `: ${bodyText.slice(0, 300)}` : '';
-                return {
-                    succeeded: false,
-                    error: `Search request failed with status ${response.status}${snippet}`,
-                };
-            }
-
-            const json = await response.json().catch(() => null);
-            if (!json || typeof json !== 'object') {
-                return { succeeded: false, error: 'Invalid search response payload.' };
-            }
-
-            return {
-                succeeded: true,
-                message: 'Search completed.',
-                query: trimmed,
-                start,
-                results: (json as any).results ?? null,
-                raw: json,
-            };
-        } catch (err) {
-            lastError = err;
-            if (attempt === 0) {
-                await authService.refreshTokens().catch(() => {});
-                continue;
-            }
+        if (!response.ok) {
+            const message =
+                (json && typeof json === 'object' && (json.error?.message || json.error?.errors?.[0]?.message))
+                    ? String(json.error.message || json.error.errors?.[0]?.message || '')
+                    : bodyText || `Request failed with status ${response.status}`;
+            return { succeeded: false, error: message };
         }
-    }
 
-    return {
-        succeeded: false,
-        error: lastError instanceof Error ? lastError.message : String(lastError ?? 'Search failed.'),
-    };
+        return {
+            succeeded: true,
+            message: 'Search completed.',
+            query: trimmed,
+            start,
+            results: (json as any)?.items ?? null,
+            raw: json,
+        };
+    } catch (err) {
+        return { succeeded: false, error: err instanceof Error ? err.message : String(err ?? 'Search failed.') };
+    }
 }
 
 function shellEscape(arg: string): string {
@@ -1316,4 +1244,4 @@ async function runCommand(
 }
 
 
-export { createFile, grepSearch, createDiff, runCommand, generateImageFile, waitForDuration, brilliantSearch };
+export { createFile, grepSearch, createDiff, runCommand, generateImageFile, waitForDuration, googleCustomSearch };

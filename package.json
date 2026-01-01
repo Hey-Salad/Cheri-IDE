@@ -1,0 +1,158 @@
+{
+  "name": "brilliantcode",
+  "version": "1.3.6",
+  "description": "Your AI engineer, powered by the best frontier AI models.",
+  "main": "dist/main/main.js",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer && npm run build:copy-updater",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json && node scripts/rename-preload-to-cjs.cjs",
+    "build:renderer": "cross-env ROLLUP_NO_NATIVE=1 NODE_OPTIONS=--max-old-space-size=4096 vite build --config vite.renderer.config.ts",
+    "build:copy-updater": "node scripts/copy-dev-app-update.cjs",
+    "start": "node scripts/run-forge.cjs start",
+    "dev": "cross-env ELECTRON_RENDERER_URL=http://localhost:5174 NODE_ENV=development concurrently -k -r -s first --names \"main,preload,renderer,electron\" \"npm:dev:main\" \"npm:dev:preload\" \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:main": "tsc -p tsconfig.main.json -w",
+    "dev:preload": "tsc -p tsconfig.preload.json -w",
+    "dev:renderer": "vite --config vite.renderer.config.ts",
+    "dev:electron": "wait-on dist/main/main.js dist/preload/preload.js http://localhost:5174 && node scripts/run-electron.cjs .",
+    "run:dist": "npm run build && node scripts/run-electron.cjs .",
+    "smoke:dist": "npm run build && node scripts/smoke-electron.cjs",
+    "dist": "npm run build && electron-builder --mac --publish=never",
+    "dist:devapp": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.dev.config.cjs --mac --dir",
+    "register:devapp": "node scripts/register-dev-app.mjs",
+    "icon:mac": "node scripts/png-to-icns.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "postinstall": "patch-package",
+    "rebuild": "cross-env CXXFLAGS=\"-std=c++20\" electron-rebuild -f -w node-pty keytar",
+    "rebuild:debug": "DEBUG=electron-rebuild* npm run rebuild",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
+  },
+  "build": {
+    "appId": "co.brilliantai.brilliantcode",
+    "productName": "BrilliantCode",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/cli/**",
+      "package.json"
+    ],
+    "protocols": [
+      {
+        "name": "BrilliantCode Deep Link",
+        "schemes": [
+          "brilliantcode"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "env/.env.production",
+        "to": ".env",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "entitlements.plist",
+      "entitlementsInherit": "entitlements.plist",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "resources/BrilliantCode.icns"
+    },
+    "dmg": {
+      "icon": "resources/BrilliantCode.icns"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "BrilliantCode-${version}-${arch}.exe"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    },
+    "afterSign": "scripts/after-sign.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brilliantai/BrilliantCode.git"
+  },
+  "author": "Jennifer Olafenwa",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/brilliantai/BrilliantCode/issues"
+  },
+  "homepage": "https://github.com/brilliantai/BrilliantCode#readme",
+  "devDependencies": {
+    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-rpm": "^7.10.2",
+    "@electron-forge/maker-squirrel": "^7.10.2",
+    "@electron-forge/maker-zip": "^7.10.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
+    "@electron-forge/plugin-fuses": "^7.10.2",
+    "@electron/fuses": "^1.8.0",
+    "@electron/notarize": "^2.5.0",
+    "@types/node": "^24.3.0",
+    "@vitest/coverage-v8": "^4.0.13",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^37.4.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "node-gyp": "^11.4.2",
+    "patch-package": "^8.0.0",
+    "rollup": "npm:@rollup/wasm-node@^4.50.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^4.0.13",
+    "wait-on": "^8.0.2"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.63.1",
+    "@azure/openai": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.18.2",
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.1",
+    "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.6.2",
+    "highlight.js": "^11.9.0",
+    "jsonrepair": "^3.13.1",
+    "jwt-decode": "^4.0.0",
+    "keytar": "^7.9.0",
+    "monaco-editor": "^0.55.1",
+    "node-pty": "1.1.0-beta34",
+    "openai": "^5.16.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-ligatures": "^0.7.0",
+    "xterm-addon-search": "^0.13.0",
+    "xterm-addon-serialize": "^0.11.0",
+    "xterm-addon-unicode11": "^0.6.0",
+    "xterm-addon-web-links": "^0.9.0",
+    "xterm-addon-webgl": "^0.16.0"
+  }
+}

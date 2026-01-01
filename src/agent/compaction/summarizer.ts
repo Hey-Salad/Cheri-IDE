@@ -65,8 +65,11 @@ function buildSummarizationPrompt(formattedTurns: string, existingSummary?: stri
 // ============================================================================
 
 export interface OpenAISummarizerConfig {
+  /** The OpenAI client (or compatible) */
   client: any;
+  /** Model to use for summarization */
   model: string;
+  /** Summarizer options */
   options?: SummarizerOptions;
 }
 
@@ -86,6 +89,7 @@ export function createOpenAISummarizer(config: OpenAISummarizerConfig) {
     console.log(`[OpenAI Summarizer] Summarizing ${turns.length} turns with model ${config.model}`);
     
     try {
+      // Use the responses API format (same as the main agent)
       const response = await config.client.responses.create({
         model: config.model,
         input: [
@@ -95,6 +99,7 @@ export function createOpenAISummarizer(config: OpenAISummarizerConfig) {
         max_output_tokens: options.maxSummaryTokens || 2000,
       });
       
+      // Extract text from response
       let summaryText = '';
       
       if (response.output_text) {
@@ -130,8 +135,11 @@ export function createOpenAISummarizer(config: OpenAISummarizerConfig) {
 // ============================================================================
 
 export interface AnthropicSummarizerConfig {
+  /** The Anthropic client (or compatible wrapper) */
   client: any;
+  /** Model to use for summarization */
   model: string;
+  /** Summarizer options */
   options?: SummarizerOptions;
 }
 
@@ -148,12 +156,15 @@ export function createAnthropicSummarizer(config: AnthropicSummarizerConfig) {
     const formattedTurns = formatAnthropicTurns(turns, options);
     const userPrompt = buildSummarizationPrompt(formattedTurns, existingSummary);
     
+    // Look up the correct API model name (same as main agent)
     const modelInfo = MODELS[config.model];
     const modelName = modelInfo?.apiName || modelInfo?.name || config.model;
     
     console.log(`[Anthropic Summarizer] Summarizing ${turns.length} turns with model ${modelName} (config: ${config.model})`);
     
     try {
+      // Use Anthropic's messages API format
+      // Note: This goes through the same client wrapper as the main agent
       const response = await config.client.responses.create({
         model: modelName,
         max_tokens: options.maxSummaryTokens || 2000,
@@ -163,6 +174,7 @@ export function createAnthropicSummarizer(config: AnthropicSummarizerConfig) {
         ],
       });
       
+      // Extract text from Anthropic response
       let summaryText = '';
       
       if (response.content && Array.isArray(response.content)) {
@@ -208,6 +220,7 @@ export function createFallbackSummarizer() {
     
     parts.push(`[Summarized ${turns.length} conversation turns]`);
     
+    // Extract just user messages as brief context
     const userMessages: string[] = [];
     for (const turn of turns) {
       const userMsg = turn.userMessage as any;

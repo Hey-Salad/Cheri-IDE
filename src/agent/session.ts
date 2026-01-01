@@ -8,6 +8,7 @@ import type { OpenAIResponseItem, OpenAIUserContent } from '../types/chat.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import { MODELS } from './models.js';
 
+// Compaction imports
 import {
   type CompactionConfig,
   DEFAULT_OPENAI_COMPACTION_CONFIG,
@@ -59,7 +60,9 @@ type ToolHandler = (args: any) => Promise<any>;
 type RunOpts = {
   preamble?: string;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
+  /** Enable/disable auto-compaction (default: true) */
   autoCompaction?: boolean;
+  /** Custom compaction config (uses defaults if not provided) */
   compactionConfig?: Partial<CompactionConfig>;
 };
 
@@ -153,11 +156,14 @@ const normalizeImageContent = (content: any): any => {
   return content.map(part => {
     if (!part || typeof part !== 'object') return part;
 
+    // Handle input_image parts - ensure they have proper data URL format
     if (part.type === 'input_image') {
       const url = part.image_url || '';
 
+      // If already a data URL, keep as-is
       if (isDataUrl(url)) return part;
 
+      // If it's raw base64, wrap it in a data URL
       if (url && !url.startsWith('http')) {
         const mimeType = part.mime_type || 'image/png';
         return {
@@ -323,6 +329,7 @@ const normalizeAnthropicUserContent = (
       continue;
     }
 
+    // Already Anthropic-compatible content blocks
     if (part.type === 'text' || part.type === 'image' || part.type === 'thinking' || part.type === 'tool_use' || part.type === 'tool_result') {
       blocks.push(part as Anthropic.ContentBlockParam);
     }
@@ -335,11 +342,13 @@ const normalizeAnthropicUserContent = (
 const convertOpenAIToAnthropicItem = (
   item: OpenAIResponseItem | AnthropicConversationItem
 ): { converted: AnthropicConversationItem | null; changed: boolean } => {
+  // Handle user messages
   if ((item as any)?.role === 'user') {
     const { blocks, changed } = normalizeAnthropicUserContent((item as any).content);
     return { converted: { role: 'user', content: blocks }, changed: true };
   }
 
+  // Handle assistant messages (convert OpenAI output_text to Anthropic text blocks)
   if ((item as any)?.role === 'assistant') {
     const content = (item as any).content;
     if (Array.isArray(content)) {
@@ -367,6 +376,7 @@ const convertOpenAIToAnthropicItem = (
     return { converted: item as AnthropicConversationItem, changed: false };
   }
 
+  // Convert OpenAI tool outputs to Anthropic tool_result
   if ((item as any)?.type === 'function_call_output') {
     const callId = typeof (item as any).call_id === 'string' ? (item as any).call_id : '';
     const output = typeof (item as any).output === 'string'
@@ -386,6 +396,7 @@ const convertOpenAIToAnthropicItem = (
     };
   }
 
+  // If already a tool_result in Anthropic shape
   if ((item as any)?.type === 'tool_result') {
     const content = Array.isArray((item as any).content) ? (item as any).content : [];
     const cleaned = content.map((block: any) => {
@@ -515,7 +526,7 @@ async function buildAgentsMdSection(workingDir: string): Promise<string> {
 
 function buildSystemPrompt(workingDir: string, dirLines: string[], extra?: string): string {
   return [
-    `You are BrilliantCode, created by BrilliantAI, "https://brilliantai.co", you are an autonomous AI Engineer working inside an Electron IDE`,
+    `You are BrilliantCode, an autonomous AI engineer working inside an Electron IDE.`,
     `You terminal access gives you same level of access as a human developer would have inside this IDE, inclusing using installed CLIs, git etc.`,
     `- Integrated terminals you can manage via tools:`,
     `    • create_terminal({ cwd?, cols?, rows? }) -> returns a terminal id (default terminal id is "default").`,
@@ -543,7 +554,7 @@ function buildSystemPrompt(workingDir: string, dirLines: string[], extra?: strin
     `- Frontend inspection tools:`,
     `    • visit_url({ url })  # visits a URL using the in-built browser and returns a screenshot, page text, and links. Single-shot with NO scroll, click, or interaction—only captures what's visible on initial load. Follow links by calling visit_url again with different URLs.`,
     `- Web/internet tools:`,
-    `    • google_search({ query, start? })  # perform a Google web search via the BrilliantAI backend and return structured results (use this for internet knowledge, not local file search).`,
+    `    • google_search({ query, start? })  # perform a Google web search via Google Custom Search (requires GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID).`,
     `When searching for information, use a combination of google_search and visit_url to find and read relevant web pages and follow links as needed.`,
     `Always use the provided tools. Note: there is NO direct DOM manipulation, scrolling, clicking, or keyboard control available for web pages.`,
     `Synergy: Before starting any dev server, call get_preview_info to see if one is already open in the Preview. If it is, reuse it. If you do start one, call detect_dev_server to find the actual URL/port and then set_preview_url to it.`,
@@ -595,11 +606,15 @@ function buildSystemPrompt(workingDir: string, dirLines: string[], extra?: strin
   ].join('\n');
 }
 
+// Prompt caching best practice (OpenAI): keep a stable prompt prefix.
+// We split our developer prompt into a mostly-static part and a dynamic context part
+// (directory tree, AGENTS.md, additional working dir, etc.).
 type SystemPromptParts = { combined: string; staticPrompt: string; dynamicPrompt: string };
 
 function buildStaticSystemPrompt(): string {
+  // NOTE: keep this as stable as possible to maximize prompt caching.
   return [
-    `You are BrilliantCode, created by BrilliantAI, "https://brilliantai.co", you are an autonomous AI Engineer working inside an Electron IDE`,
+    `You are BrilliantCode, an autonomous AI engineer working inside an Electron IDE.`,
     `You terminal access gives you same level of access as a human developer would have inside this IDE, inclusing using installed CLIs, git etc.`,
     `- Integrated terminals you can manage via tools:`,
     `    • create_terminal({ cwd?, cols?, rows? }) -> returns a terminal id (default terminal id is "default").`,
@@ -627,7 +642,7 @@ function buildStaticSystemPrompt(): string {
     `- Frontend inspection tools:`,
     `    • visit_url({ url })  # visits a URL using the in-built browser and returns a screenshot, page text, and links. Single-shot with NO scroll, click, or interaction—only captures what's visible on initial load. Follow links by calling visit_url again with different URLs.`,
     `- Web/internet tools:`,
-    `    • google_search({ query, start? })  # perform a Google web search via the BrilliantAI backend and return structured results (use this for internet knowledge, not local file search).`,
+    `    • google_search({ query, start? })  # perform a Google web search via Google Custom Search (requires GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID).`,
     `When searching for information, use a combination of google_search and visit_url to find and read relevant web pages and follow links as needed.`,
     `Always use the provided tools. Note: there is NO direct DOM manipulation, scrolling, clicking, or keyboard control available for web pages.`,
     `Synergy: Before starting any dev server, call get_preview_info to see if one is already open in the Preview. If it is, reuse it. If you do start one, call detect_dev_server to find the actual URL/port and then set_preview_url to it.`,
@@ -788,6 +803,7 @@ const isTransientError = (error: any): boolean => {
     return true;
   }
 
+  // Anthropic-specific error types
   const errorType = error?.type;
   if (errorType === 'overloaded_error' || errorType === 'rate_limit_error') {
     return true;
@@ -829,13 +845,16 @@ const retry = async <T>(
     try {
       return await fn();
     } catch (error) {
+      // Log the failure for observability
       try { console.warn('[AgentSession][retry] attempt failed', summarize(error)); } catch {}
 
+      // Stop if this error shouldn't be retried
       if (!shouldRetry(error)) {
         try { console.warn('[AgentSession][retry] not retrying (non-transient)', summarize(error)); } catch {}
         throw error;
       }
 
+      // Stop if the retry deadline has expired
       if (deadline && Date.now() >= deadline) {
         try { console.warn('[AgentSession][retry] time budget exceeded', summarize(error)); } catch {}
         throw error;
@@ -890,6 +909,7 @@ const waitForResponseCompletion = async (client: any, initial: any, opts?: WaitF
 
   const status = typeof initial?.status === 'string' ? initial.status.toLowerCase() : '';
 
+  // Anthropic responses are immediate (already completed)
   if (!status || status === 'completed' || status === 'succeeded' || status === 'success') {
     return initial;
   }
@@ -974,6 +994,7 @@ const waitForResponseCompletion = async (client: any, initial: any, opts?: WaitF
     } catch (error: any) {
       const statusCode = error?.status ?? error?.statusCode ?? error?.response?.status;
       if (statusCode === 404) {
+        // Treat missing responses as completed and use the last known state
         return current;
       }
       throw error;
@@ -1084,6 +1105,7 @@ const executeToolCall = async (
     result = `Error: ${e instanceof Error ? e.message : String(e)}`;
   }
 
+  // Handle special cases - return minimal text with structured image data
   let data: any;
   let resultText: string;
 
@@ -1108,6 +1130,7 @@ const executeToolCall = async (
     const mime = result.mime || 'image/png';
     const imageData = result.data;
 
+    // Store the image data (and any extras) for the UI/transport
     data = {
       mime,
       data: imageData,
@@ -1115,6 +1138,7 @@ const executeToolCall = async (
       ...(toolName === 'visit_url' ? { url: result.url, text: result.text, links: result.links } : {}),
     };
 
+    // Return minimal text - the image will be added to context properly elsewhere
     resultText = toolName === 'visit_url'
       ? `[Visited URL: ${result.url || ''}]`
       : '[Screenshot captured]';
@@ -1247,6 +1271,7 @@ export class AgentSession {
       agentsSection = '';
     }
 
+    // Build additional directory section if present
     let additionalDirSection = '';
     if (this.additionalWorkingDir) {
       try {
@@ -1283,6 +1308,9 @@ export class AgentSession {
   // Context Metrics Logging
   // ============================================================================
 
+  /**
+   * Log current context metrics for debugging.
+   */
   private logContextMetrics(
     history: OpenAIResponseItem[] | AnthropicConversationItem[],
     provider: Provider,
@@ -1299,6 +1327,7 @@ export class AgentSession {
         ? { ...DEFAULT_OPENAI_COMPACTION_CONFIG }
         : { ...DEFAULT_ANTHROPIC_COMPACTION_CONFIG };
 
+      // Model-aware overrides (if present)
       const modelInfo = MODELS[this.model];
       if (typeof modelInfo?.contextWindowTokens === 'number' && Number.isFinite(modelInfo.contextWindowTokens)) {
         base.maxContextTokens = Math.max(1, Math.floor(modelInfo.contextWindowTokens));
@@ -1320,6 +1349,7 @@ export class AgentSession {
         `toolCalls=${metrics.toolCallTokens.toLocaleString()} toolResults=${metrics.toolResultTokens.toLocaleString()} ` +
         `reasoning=${metrics.reasoningTokens.toLocaleString()}]`);
 
+      // Emit metrics to UI for potential display
       this.transport.emit('ai:agent:monitor', {
         type: 'context_metrics',
         provider,
@@ -1349,6 +1379,10 @@ export class AgentSession {
   // Context Compaction
   // ============================================================================
 
+  /**
+   * Check if history needs compaction and perform it if necessary.
+   * Returns the (possibly compacted) history.
+   */
   private async maybeCompactHistory(
     history: OpenAIResponseItem[] | AnthropicConversationItem[],
     provider: Provider,
@@ -1366,6 +1400,9 @@ export class AgentSession {
     }
   }
 
+  /**
+   * Compact OpenAI history if needed.
+   */
   private async maybeCompactOpenAIHistory(
     history: OpenAIResponseItem[],
     opts?: RunOpts
@@ -1374,6 +1411,7 @@ export class AgentSession {
       ...DEFAULT_OPENAI_COMPACTION_CONFIG,
     };
 
+    // Model-aware overrides (if present)
     const modelInfo = MODELS[this.model];
     if (typeof modelInfo?.contextWindowTokens === 'number' && Number.isFinite(modelInfo.contextWindowTokens)) {
       base.maxContextTokens = Math.max(1, Math.floor(modelInfo.contextWindowTokens));
@@ -1387,12 +1425,14 @@ export class AgentSession {
       ...opts?.compactionConfig,
     };
 
+    // Check if compaction is needed
     if (!needsOpenAICompaction(history, config)) {
       return history;
     }
 
     console.log('[AgentSession] OpenAI context compaction triggered');
 
+    // Create summarizer
     const fallbackSummarizer = createFallbackSummarizer();
     let summarizer = fallbackSummarizer;
     let usingFallback = true;
@@ -1449,6 +1489,7 @@ export class AgentSession {
       ...DEFAULT_ANTHROPIC_COMPACTION_CONFIG,
     };
 
+    // Model-aware overrides (if present)
     const modelInfo = MODELS[this.model];
     if (typeof modelInfo?.contextWindowTokens === 'number' && Number.isFinite(modelInfo.contextWindowTokens)) {
       base.maxContextTokens = Math.max(1, Math.floor(modelInfo.contextWindowTokens));
@@ -1462,12 +1503,14 @@ export class AgentSession {
       ...opts?.compactionConfig,
     };
 
+    // Check if compaction is needed
     if (!needsAnthropicCompaction(history, config)) {
       return history;
     }
 
     console.log('[AgentSession] Anthropic context compaction triggered');
 
+    // Create summarizer
     const fallbackSummarizer: AnthropicSummarizer = createFallbackSummarizer();
     let summarizer: AnthropicSummarizer = fallbackSummarizer;
     let usingFallback = true;
@@ -1535,11 +1578,14 @@ export class AgentSession {
     systemPrompt: string,
     opts?: RunOpts
   ): Promise<{ toolCalled: boolean; history: OpenAIResponseItem[] }> {
+    // Build messages with system prompt
     let messages = history.map((item) => {
       if (!item || typeof item !== 'object') return item;
       const { display_text, ...rest } = item as any;
       return rest as OpenAIResponseItem;
     });
+    // Prompt caching best practice: keep a stable developer prefix, and send the
+    // dynamic workspace context (dir tree, AGENTS.md, etc.) as a separate message.
     const staticPrompt = this.systemPromptStatic;
     const dynamicPrompt = this.systemPromptDynamic;
 
@@ -1561,6 +1607,7 @@ export class AgentSession {
       parallel_tool_calls: true
     };
 
+    // OpenAI reasoning configuration
     if (supportsReasoning(this.model)) {
       requestParams.reasoning = {
         effort: opts?.reasoningEffort ?? 'high',
@@ -1601,6 +1648,7 @@ export class AgentSession {
     systemPrompt: string,
     opts?: RunOpts
   ): Promise<{ toolCalled: boolean; history: AnthropicConversationItem[] }> {
+    // Build Anthropic request directly from native history
     const messages: Anthropic.MessageParam[] = history.filter(
       (item): item is Anthropic.MessageParam => 'role' in item && item.role !== undefined
     );
@@ -1611,6 +1659,8 @@ export class AgentSession {
     const thinkingBudget = supportsExtendedThinking(this.model)
       ? this.getThinkingBudget(effort)
       : 0;
+    // Keep max_tokens friendly for non-streaming requests while ensuring it stays
+    // above the thinking budget to satisfy Anthropic's requirement.
     const outputAllowance = 4096;
     const safeMaxTokens = 32000;
     const maxTokens = Math.min(
@@ -1627,6 +1677,7 @@ export class AgentSession {
       tools: this.buildAnthropicTools(),
     };
 
+    // Extended thinking configuration for Anthropic
     if (supportsExtendedThinking(this.model)) {
       const adjustedBudget = Math.min(thinkingBudget, Math.max(1024, maxTokens - 1024));
       params.thinking = {
@@ -1637,6 +1688,7 @@ export class AgentSession {
 
     let response: Anthropic.Message;
     try {
+      // Call through the client wrapper which routes to Anthropic in main.ts
       response = await retry(() => this.client.responses.create(params as any)) as any;
       if (allowCacheControl) {
         anthropicCacheControlSupported = anthropicCacheControlSupported ?? true;
@@ -1669,7 +1721,7 @@ export class AgentSession {
     return this.toolsSchema.map(tool => ({
       name: tool.name,
       description: tool.description,
-      input_schema: tool.parameters
+      input_schema: tool.parameters  // Anthropic uses input_schema
     }));
   }
 
@@ -1691,12 +1743,14 @@ export class AgentSession {
 
     const { blocks: sanitizedContent } = sanitizeAnthropicContentBlocks(response.content as Anthropic.ContentBlockParam[], '[empty assistant message]');
 
+    // Store assistant message directly in Anthropic format
     const assistantMessage: Anthropic.MessageParam = {
       role: 'assistant',
-      content: sanitizedContent
+      content: sanitizedContent  // Keep native thinking, text, tool_use blocks (sanitized)
     };
     newHistory.push(assistantMessage);
 
+    // Emit events for UI (this is the ONLY conversion)
     for (const block of sanitizedContent) {
       if (block.type === 'thinking') {
         this.transport.emit('ai:reasoning:summary_done', { text: block.thinking });
@@ -1710,6 +1764,7 @@ export class AgentSession {
           delta: JSON.stringify(block.input)
         });
 
+        // Execute tool and add result to history
         await this.handleAnthropicToolCall(block, newHistory);
       }
     }
@@ -1725,6 +1780,7 @@ export class AgentSession {
     const callId = toolUse.id;
     const argsJson = JSON.stringify(toolUse.input);
 
+    // Check if confirmation needed
     if (needsConfirmation(toolName, this.autoMode)) {
       const preview = buildPreview(toolName, toolUse.input);
 
@@ -1739,6 +1795,7 @@ export class AgentSession {
       }).catch(() => false);
 
       if (!confirmed) {
+        // Add tool result with cancellation message
         const toolResult: AnthropicConversationItem = {
           role: 'user',
           content: [{
@@ -1752,6 +1809,7 @@ export class AgentSession {
       }
     }
 
+    // Execute tool
     const handler = this.toolHandlers[toolName];
     if (!handler) {
       const toolResult: AnthropicConversationItem = {
@@ -1779,6 +1837,7 @@ export class AgentSession {
         ac.signal
       );
 
+      // Add tool result in Anthropic format
       const toolResult: AnthropicConversationItem = {
         role: 'user',
         content: [{
@@ -2070,8 +2129,11 @@ export class AgentSession {
           history = [...history as any[], ...newHistory as any[]];
           dirty = true;
 
+          // Log context size after history growth
           this.logContextMetrics(history, provider, loopIteration, 'post-request', opts?.compactionConfig);
 
+          // Incremental persistence: flush partial assistant output to disk
+          // Use updateTimestamp: false to avoid noisy timestamp churn during streaming
           try {
             await this.chatStore.setHistory(this.workingDir, params.sessionId, history, { updateTimestamp: false });
           } catch (incPersistErr) {
@@ -2099,6 +2161,7 @@ export class AgentSession {
         if (!toolCalled) break;
       }
     } finally {
+      // Persist changes even if an error occurs mid-run
       try {
         if (dirty) {
           await this.chatStore.setHistory(this.workingDir, params.sessionId, history);

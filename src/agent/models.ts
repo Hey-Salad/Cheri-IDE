@@ -1,32 +1,26 @@
+// Model metadata that drives both UI selection and API routing.
 export type Provider = 'openai' | 'anthropic';
 
 export type Model = {
-  name: string;
-  apiName?: string;
-  endpoint?: string;
-  type: string;
+  name: string; // Display name shown in the UI
+  apiName?: string; // Provider-specific identifier when it differs from display name
+  type: string; // 'reasoning' | 'chat' | 'extended_thinking' | etc.
   provider: Provider;
   streaming?: boolean;
   reasoning?: boolean;
   extendedThinking?: boolean;
+
+  /** Optional model context window sizing used for compaction + metrics */
   contextWindowTokens?: number;
+  /** Optional model-specific compaction trigger/target token threshold */
   compactionTargetTokens?: number;
 };
 
-// Prefer process.env when available (main/preload), but guard in browser (renderer).
-const endpoint =
-  (typeof process !== 'undefined' && process?.env?.BRILLIANT_AI_ENDPOINT)
-    || (typeof process !== 'undefined' && process?.env?.AZURE_OPENAI_ENDPOINT)
-    || (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_BRILLIANT_AI_ENDPOINT)
-    || '';
-
-// OpenAI models served via the Brilliant AI proxy (legacy Azure envs remain for compatibility).
 // These keys map to deployment/model names that the renderer passes back from the
 // model picker. The main process relays the chosen string directly to the SDK.
 export const OPENAI_MODELS: Record<string, Model> = {
   'gpt-5.1-codex-max': {
     name: 'gpt-5.1-codex-max',
-    endpoint,
     type: 'reasoning',
     provider: 'openai',
     streaming: false,
@@ -36,7 +30,6 @@ export const OPENAI_MODELS: Record<string, Model> = {
   },
   'gpt-5.1': {
     name: 'gpt-5.1',
-    endpoint,
     type: 'reasoning',
     provider: 'openai',
     streaming: false,
@@ -46,7 +39,6 @@ export const OPENAI_MODELS: Record<string, Model> = {
   },
   'gpt-5.2': {
     name: 'gpt-5.2',
-    endpoint,
     type: 'reasoning',
     provider: 'openai',
     streaming: false,
@@ -56,7 +48,6 @@ export const OPENAI_MODELS: Record<string, Model> = {
   },
   'gpt-5-pro': {
     name: 'gpt-5-pro',
-    endpoint,
     type: 'reasoning',
     provider: 'openai',
     streaming: false,
@@ -121,6 +112,7 @@ export function supportsExtendedThinking(modelName: string): boolean {
 }
 
 export function supportsStreaming(_modelName: string): boolean {
+  // Streaming disabled globally
   return false;
 }
 

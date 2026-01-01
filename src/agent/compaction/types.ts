@@ -13,13 +13,20 @@ import type { AnthropicConversationItem } from '../chatStore.js';
 export type CompactionStrategy = 'per_turn' | 'rolling_summary' | 'adaptive';
 
 export interface CompactionConfig {
+  /** Maximum context tokens before compaction is required */
   maxContextTokens: number;
+  /** Target token count to compact down to (trigger threshold) */
   targetContextTokens: number;
+  /** Number of recent turns to always preserve intact */
   preserveLastTurns: number;
+  /** Model to use for summarization (should be fast/cheap) */
   summaryModel: string;
+  /** Whether compaction is enabled */
   enabled: boolean;
 
+  /** Compaction strategy (default: per_turn) */
   strategy: CompactionStrategy;
+  /** Maximum number of compaction passes per invocation (default: 2) */
   maxIterations: number;
 }
 
@@ -65,17 +72,26 @@ export interface ContextMetrics {
  * until the next user message.
  */
 export interface OpenAITurn {
+  /** The user message that started this turn */
   userMessage: OpenAIResponseItem;
+  /** All assistant responses, tool calls, and tool results in this turn */
   assistantAndTools: OpenAIResponseItem[];
+  /** Estimated token count for this turn */
   estimatedTokens: number;
 }
 
 export interface OpenAICompactionResult {
+  /** The compacted history */
   history: OpenAIResponseItem[];
+  /** Whether compaction was performed */
   compacted: boolean;
+  /** Number of turns that were summarized */
   turnsSummarized: number;
+  /** Original token estimate */
   originalTokens: number;
+  /** New token estimate after compaction */
   newTokens: number;
+  /** The summary text that was generated */
   summaryText?: string;
 }
 
@@ -88,17 +104,26 @@ export interface OpenAICompactionResult {
  * until the next user message.
  */
 export interface AnthropicTurn {
+  /** The user message that started this turn */
   userMessage: AnthropicConversationItem;
+  /** All assistant responses and tool results in this turn */
   assistantAndTools: AnthropicConversationItem[];
+  /** Estimated token count for this turn */
   estimatedTokens: number;
 }
 
 export interface AnthropicCompactionResult {
+  /** The compacted history */
   history: AnthropicConversationItem[];
+  /** Whether compaction was performed */
   compacted: boolean;
+  /** Number of turns that were summarized */
   turnsSummarized: number;
+  /** Original token estimate */
   originalTokens: number;
+  /** New token estimate after compaction */
   newTokens: number;
+  /** The summary text that was generated */
   summaryText?: string;
 }
 
@@ -107,8 +132,11 @@ export interface AnthropicCompactionResult {
 // ============================================================================
 
 export interface SummarizerOptions {
+  /** Maximum tokens for the summary output */
   maxSummaryTokens?: number;
+  /** Whether to include tool names in summary */
   includeToolNames?: boolean;
+  /** Whether to include file paths mentioned */
   includeFilePaths?: boolean;
 }
 
@@ -122,8 +150,10 @@ export const DEFAULT_SUMMARIZER_OPTIONS: SummarizerOptions = {
 // Summary Message Markers
 // ============================================================================
 
+/** Marker prefix for compacted summary messages */
 export const SUMMARY_MARKER_PREFIX = '[CONVERSATION SUMMARY - Previous context has been summarized to save space]\n\n';
 
+/** Check if a message is a compaction summary */
 export function isSummaryMessage(content: string | undefined | null): boolean {
   if (!content || typeof content !== 'string') return false;
   return content.startsWith(SUMMARY_MARKER_PREFIX) || content.includes('[CONVERSATION SUMMARY');

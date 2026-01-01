@@ -137,3 +137,15 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# macOS
+.DS_Store
+
+# Local build artifacts
+release/
+.tmp-iconsets/
+
+# Renderer build outputs that should not live in src/
+src/renderer/**/*.js
+src/renderer/**/*.js.map
+src/renderer/**/*.map
