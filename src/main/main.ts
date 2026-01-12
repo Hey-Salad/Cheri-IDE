@@ -386,6 +386,7 @@ const windowAdditionalWorkingDirs: Map<number, string | null> = new Map(); // wi
 const windowAgentModes: Map<number, 'chat' | 'agent' | 'agent_full'> = new Map();
 const previewCommandResolvers = new Map<string, { resolve: (value: any) => void; timeout: NodeJS.Timeout | null }>();
 const DEFAULT_TERMINAL_ID = 'default';
+const htmlPreviewWindows = new Set<BrowserWindow>();
 
 const DEFAULT_TOOL_TEXT_LIMIT = 120_000;
 const TERMINAL_TEXT_LIMIT = 120_000;
@@ -1496,7 +1497,28 @@ async function previewPathInView(win: Electron.BrowserWindow, filePath: string):
     if (!fsSync.existsSync(resolved)) return { ok: false, error: 'not-found' };
     const ext = path.extname(resolved).toLowerCase();
     if (['.html', '.htm'].includes(ext)) {
-      await view.webContents.loadFile(resolved);
+      const preview = new BrowserWindow({
+        width: 960,
+        height: 720,
+        show: true,
+        autoHideMenuBar: true,
+        title: `Preview: ${path.basename(resolved)}`,
+        backgroundColor: '#111111',
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+          webSecurity: true,
+          allowRunningInsecureContent: false,
+          webviewTag: false,
+        }
+      });
+      htmlPreviewWindows.add(preview);
+      preview.on('closed', () => {
+        htmlPreviewWindows.delete(preview);
+      });
+      preview.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      await preview.loadFile(resolved);
       return { ok: true };
     }
     if (['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.pdf'].includes(ext)) {
