@@ -1349,92 +1349,6 @@ function setupPaywall(): void {
   });
 }
 
-function setupBillingBanner(): void {
-  const banner = document.getElementById('billing-banner') as HTMLDivElement | null;
-  const textEl = document.getElementById('billing-banner-text') as HTMLDivElement | null;
-  const cta = document.getElementById('billing-banner-cta') as HTMLButtonElement | null;
-  if (!banner || !textEl || !cta || !window.billing) return;
-
-  const setVisible = (visible: boolean) => {
-    banner.hidden = !visible;
-  };
-
-  const render = (state: BillingState | null) => {
-    if (state) latestBillingState = state;
-    if (!state || !state.authenticated) {
-      setVisible(false);
-      return;
-    }
-    const creditsOk = hasCredits(state);
-    if (state.ok && creditsOk) {
-      setVisible(false);
-      return;
-    }
-
-    setVisible(true);
-    if (state.ok && !creditsOk) {
-      textEl.textContent = 'No credits remaining. Choose a plan or top up credits to continue.';
-      cta.textContent = 'Top up credits';
-      return;
-    }
-
-    const err = (state.error || '').trim();
-    const msg = err ? `Unable to verify subscription status: ${err}` : 'Unable to verify subscription status.';
-    textEl.textContent = msg.length > 180 ? `${msg.slice(0, 177)}…` : msg;
-  };
-
-  if (!cta.dataset.bound) {
-    cta.dataset.bound = 'true';
-    cta.addEventListener('click', () => { try { openPaywall?.(); } catch {} });
-  }
-
-  const detach = window.billing.onStateChange?.((state) => {
-    render(coerceBillingState(state));
-  });
-  if (detach) {
-    window.addEventListener('beforeunload', () => { try { detach(); } catch {} }, { once: true });
-  }
-
-  void fetchBillingState().then(render);
-}
-
-function setupTopupButton(): void {
-  const btn = document.getElementById('btn-topup') as HTMLButtonElement | null;
-  if (!btn || !window.billing) return;
-
-  const setVisible = (visible: boolean) => {
-    btn.hidden = !visible;
-  };
-
-  if (!btn.dataset.bound) {
-    btn.dataset.bound = 'true';
-    btn.addEventListener('click', () => {
-      if (openPaywallCredits) {
-        openPaywallCredits();
-        return;
-      }
-      openPaywall?.();
-    });
-  }
-
-  const render = (state: BillingState | null) => {
-    if (!state || !state.authenticated || !state.ok) {
-      setVisible(false);
-      return;
-    }
-    setVisible(true);
-  };
-
-  const detach = window.billing.onStateChange?.((state) => {
-    render(coerceBillingState(state));
-  });
-  if (detach) {
-    window.addEventListener('beforeunload', () => { try { detach(); } catch {} }, { once: true });
-  }
-
-  void fetchBillingState().then(render);
-}
-
 let noticeListenerAttached = false;
 
 // UI state persists in localStorage so the app remembers the last model &
@@ -6331,8 +6245,6 @@ async function init(): Promise<void> {
   if (window.billing) {
     setupPaywall();
   }
-  setupBillingBanner();
-  setupTopupButton();
   await setupChatUi();
   setupLeftToggle();
   setupLayoutModeBridge();
