@@ -78,12 +78,16 @@ contextBridge.exposeInMainWorld('pty', {
 });
 
 contextBridge.exposeInMainWorld('apiKeys', {
-  status: (): Promise<{ ok: boolean; status?: { openai: { configured: boolean; source: 'keytar' | 'env' | null }; anthropic: { configured: boolean; source: 'keytar' | 'env' | null } }; error?: string }> =>
+  status: (): Promise<{ ok: boolean; status?: { openai: { configured: boolean; source: 'keytar' | 'env' | null; baseUrl: { configured: boolean; source: 'keytar' | 'env' | null; value?: string } }; anthropic: { configured: boolean; source: 'keytar' | 'env' | null } }; error?: string }> =>
     ipcRenderer.invoke('api-keys:status'),
   set: (provider: 'openai' | 'anthropic', apiKey: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('api-keys:set', { provider, apiKey }),
   clear: (provider: 'openai' | 'anthropic'): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('api-keys:clear', { provider }),
+  setBaseUrl: (baseUrl: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('api-keys:set-base-url', { baseUrl }),
+  clearBaseUrl: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('api-keys:clear-base-url'),
   showDialog: (): void => ipcRenderer.send('api-keys:show-dialog'),
 });
 

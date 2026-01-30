@@ -23,13 +23,19 @@ declare global {
       status: () => Promise<{
         ok: boolean;
         status?: {
-          openai: { configured: boolean; source: 'keytar' | 'env' | null };
+          openai: {
+            configured: boolean;
+            source: 'keytar' | 'env' | null;
+            baseUrl: { configured: boolean; source: 'keytar' | 'env' | null; value?: string };
+          };
           anthropic: { configured: boolean; source: 'keytar' | 'env' | null };
         };
         error?: string;
       }>;
       set: (provider: 'openai' | 'anthropic', apiKey: string) => Promise<{ ok: boolean; error?: string }>;
       clear: (provider: 'openai' | 'anthropic') => Promise<{ ok: boolean; error?: string }>;
+      setBaseUrl: (baseUrl: string) => Promise<{ ok: boolean; error?: string }>;
+      clearBaseUrl: () => Promise<{ ok: boolean; error?: string }>;
       showDialog?: () => void;
     };
     billing?: {

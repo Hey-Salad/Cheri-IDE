@@ -985,11 +985,13 @@ const withModelRequestGate = createRequestGate(MODEL_REQUEST_CONCURRENCY);
 const llmClient = (() => {
     const buildOpenAIClient = async (): Promise<OpenAI> => {
         const { key } = await apiKeys.getApiKey('openai');
+        const { url: baseUrl } = await apiKeys.getOpenAIBaseUrl();
         if (!key) {
             throw new Error('OpenAI API key is not configured. Use AI → API Keys… to set OPENAI_API_KEY.');
         }
         return new OpenAI({
             apiKey: key,
+            baseURL: baseUrl || undefined,
         });
     };
 
@@ -1198,6 +1200,25 @@ ipcMain.handle('api-keys:clear', async (_event: Electron.IpcMainInvokeEvent, pay
     return { ok: true };
   } catch (error: any) {
     return { ok: false, error: error?.message || 'Failed to clear API key.' };
+  }
+});
+
+ipcMain.handle('api-keys:set-base-url', async (_event: Electron.IpcMainInvokeEvent, payload: { baseUrl?: string }) => {
+  try {
+    const baseUrlValue = typeof payload?.baseUrl === 'string' ? payload.baseUrl : '';
+    await apiKeys.setOpenAIBaseUrl(baseUrlValue);
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to save OpenAI base URL.' };
+  }
+});
+
+ipcMain.handle('api-keys:clear-base-url', async () => {
+  try {
+    await apiKeys.setOpenAIBaseUrl('');
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to clear OpenAI base URL.' };
   }
 });
 
@@ -4037,6 +4058,12 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
   </div>
 
   <div class=row>
+    <label>OpenAI Base URL (optional) <span id=openaiBaseStatus class=status></span></label>
+    <input id=openaiBase placeholder="https://openrouter.ai/api/v1" autocomplete="off" />
+    <div class=hint>Env fallback: <code>OPENAI_BASE_URL</code> or <code>OPENAI_API_BASE</code>. Leave blank for api.openai.com</div>
+  </div>
+
+  <div class=row>
     <label>Anthropic <span id=anthropicStatus class=status></span></label>
     <input id=anthropic placeholder="sk-ant-…" autocomplete="off" />
     <div class=hint>Env fallback: <code>ANTHROPIC_API_KEY</code></div>
@@ -4057,7 +4084,9 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
       if (!el) return;
       if (!st) { el.textContent = '—'; return; }
       if (st.configured) {
-        el.textContent = st.source ? ('configured (' + st.source + ')') : 'configured';
+        const val = typeof st.value === 'string' && st.value.trim() ? st.value.trim() : null;
+        const suffix = st.source ? (' (' + st.source + ')') : '';
+        el.textContent = val ? (val + suffix) : ('configured' + suffix);
       } else {
         el.textContent = 'not configured';
       }
@@ -4075,6 +4104,9 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
           return;
         }
         setStatus($('openaiStatus'), res.status && res.status.openai);
+        setStatus($('openaiBaseStatus'), res.status && res.status.openai && res.status.openai.baseUrl);
+        const baseVal = res.status && res.status.openai && res.status.openai.baseUrl && res.status.openai.baseUrl.value;
+        $('openaiBase').value = baseVal || '';
         setStatus($('anthropicStatus'), res.status && res.status.anthropic);
       } catch(e){
         setMsg(String(e && e.message || e || 'Failed to refresh status'), 'error');
@@ -4087,18 +4119,22 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
       try{
         setMsg('Saving…','error');
         const openai = String($('openai').value||'').trim();
+        const openaiBase = String($('openaiBase').value||'').trim();
         const anthropic = String($('anthropic').value||'').trim();
 
         if (openai) {
           const r = await window.apiKeys.set('openai', openai);
           if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save OpenAI key');
         }
+        const rBase = await window.apiKeys.setBaseUrl(openaiBase);
+        if (!rBase || !rBase.ok) throw new Error((rBase && rBase.error) ? rBase.error : 'Failed to save OpenAI base URL');
         if (anthropic) {
           const r = await window.apiKeys.set('anthropic', anthropic);
           if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save Anthropic key');
         }
 
         $('openai').value='';
+        $('openaiBase').value=openaiBase;
         $('anthropic').value='';
         setMsg('Saved.','ok');
         await refresh();
@@ -4112,6 +4148,8 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
         setMsg('Clearing…','error');
         const r1 = await window.apiKeys.clear('openai');
         if (!r1 || !r1.ok) throw new Error((r1 && r1.error) ? r1.error : 'Failed to clear OpenAI key');
+        const rBase = await window.apiKeys.clearBaseUrl();
+        if (!rBase || !rBase.ok) throw new Error((rBase && rBase.error) ? rBase.error : 'Failed to clear OpenAI base URL');
         const r2 = await window.apiKeys.clear('anthropic');
         if (!r2 || !r2.ok) throw new Error((r2 && r2.error) ? r2.error : 'Failed to clear Anthropic key');
         setMsg('Cleared stored keys.','ok');
