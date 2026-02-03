@@ -3,7 +3,7 @@
 
 BrilliantCode is an open-source autonomous AI engineer built for production-grade, real-world software engineering. Think of it as an open-source alternative to Cursor that gives you full transparency and control over the agent's actions.
 
-<video src="https://brilliantaipublicassetsbucket.s3.us-east-1.amazonaws.com/bcode+opensource+announcement+video.mp4" controls></video>
+https://brilliantaipublicassetsbucket.s3.us-east-1.amazonaws.com/bcode+opensource+announcement+video.mp4
 
 ## Getting started
 
@@ -19,7 +19,6 @@ npm run dev
 ```
 
 ## Documentation
-Documentation: [DOCS.md](DOCS.md)
-
+[Documentation](DOCS.md)
 
 
