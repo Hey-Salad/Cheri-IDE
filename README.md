@@ -9,9 +9,8 @@ BrilliantCode is an open-source autonomous AI engineer built for production-grad
 
 Download: 
 
-```bash
 https://jcumoke.com/bcode#download
-```
+
 
 Run locally:
 
