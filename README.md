@@ -12,14 +12,6 @@ Download:
 https://jcumoke.com/bcode#download
 
 
-Run locally:
-
-```bash
-git clone https://github.com/chinenyay/BrilliantCode.git
-cd BrilliantCode
-npm install
-npm run dev
-```
-
 ## Documentation
+More details on running locally, customizing and contributing:
 [Documentation](DOCS.md)
