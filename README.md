@@ -1,5 +1,5 @@
 
-# BrilliantCode
+### BrilliantCode - Your open source AI engineer
 
 [![BrilliantCode](assets/brilliant-code-image.png)](https://jcumoke.com/bcode)
 
