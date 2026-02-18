@@ -23,6 +23,11 @@ export CSC_NAME="SALADHR TECHNOLOGY LTD (A24823SWLS)"
 # export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"  # Generate at appleid.apple.com
 # export APPLE_TEAM_ID="A24823SWLS"
 
+echo "🧹 Cleaning old release files..."
+rm -rf release/*.dmg release/*.zip release/*.blockmap release/mac-arm64 2>/dev/null || true
+echo "   Removed old DMG, ZIP, and build artifacts"
+echo ""
+
 echo "📦 Installing dependencies..."
 npm install
 
