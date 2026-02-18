@@ -1,16 +1,10 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Simplified two-cherry favicon -->
-  <!-- Stems -->
-  <path d="M16 7 C 15 5, 12 3, 11 5" stroke="#10B981" stroke-width="1.5" fill="none"/>
-  <path d="M16 7 C 17 5, 20 3, 21 5" stroke="#10B981" stroke-width="1.5" fill="none"/>
-
-  <!-- Left cherry -->
-  <circle cx="11" cy="20" r="9" fill="#ED4C4C"/>
-
-  <!-- Right cherry -->
-  <circle cx="21" cy="20" r="9" fill="#ED4C4C"/>
-
-  <!-- Highlights -->
-  <ellipse cx="11" cy="18" rx="3" ry="2" fill="#faa09a" opacity="0.6"/>
-  <ellipse cx="21" cy="18" rx="3" ry="2" fill="#faa09a" opacity="0.6"/>
+  <!-- Simple emoji-style cherries 🍒 -->
+  <path d="M16 6 L12.5 12.5" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M16 6 L19.5 12.5" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M16 5 Q17.5 3.5 19 5 Q17.5 6.5 16 5" fill="#22c55e"/>
+  <circle cx="12.5" cy="20" r="8" fill="#ed4c4c"/>
+  <circle cx="10.5" cy="17.5" r="2.5" fill="#ffffff" opacity="0.4"/>
+  <circle cx="19.5" cy="20" r="8" fill="#ed4c4c"/>
+  <circle cx="17.5" cy="17.5" r="2.5" fill="#ffffff" opacity="0.4"/>
 </svg>

@@ -1,6 +1,6 @@
 {
   "name": "@heysalad/cheri",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "AI that remembers your code - by HeySalad",
   "main": "dist/main/main.js",
   "type": "module",
