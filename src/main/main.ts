@@ -21,7 +21,7 @@ import {
   undoWorkspaceBaselineAll,
   undoWorkspaceBaselineFile,
 } from './workspaceBaseline.js';
-import { MODELS, getModelProvider, setCustomModels, isBuiltinModel, type Provider } from '../agent/models.js';
+import { MODELS, getModelProvider, resolveApiModelName, setCustomModels, isBuiltinModel, type Provider } from '../agent/models.js';
 import type { OpenAIResponseItem } from '../types/chat.js';
 import { listDirTree } from '../agent/dirTree.js';
 import { promises as fs } from 'node:fs';
@@ -1128,6 +1128,51 @@ const llmClient = (() => {
         });
     };
 
+    // AWS Bedrock — direct fetch to Bedrock Runtime using bearer token auth
+    const invokeBedrockModel = async (params: any): Promise<any> => {
+        const { key: bearerToken } = await apiKeys.getApiKey('bedrock');
+        if (!bearerToken) {
+            throw new Error('AWS Bedrock bearer token not configured. Use AI → API Keys… to add it.');
+        }
+        const region = await apiKeys.getBedrockRegion();
+        const modelId = resolveApiModelName((params as any)?.model || '');
+        const url = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/invoke`;
+
+        const body: Record<string, unknown> = {
+            anthropic_version: 'bedrock-2023-05-31',
+            max_tokens: (params as any).max_tokens || 4096,
+            messages: (params as any).messages || [],
+        };
+        if ((params as any).system) body['system'] = (params as any).system;
+        if ((params as any).thinking) body['thinking'] = (params as any).thinking;
+        if ((params as any).temperature !== undefined) body['temperature'] = (params as any).temperature;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${bearerToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            const errText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`Bedrock API error ${response.status}: ${errText}`);
+        }
+        return response.json();
+    };
+
+    // HeySalad managed inference — proxied via HeySalad's Bedrock account
+    const HEYSALAD_INFERENCE_URL = 'https://cheri.heysalad.app/api/v1';
+    const buildHeysSaladClient = async (): Promise<OpenAI> => {
+        const { key } = await apiKeys.getApiKey('heysalad');
+        if (!key) {
+            throw new Error('HeySalad API key not configured. Use AI → API Keys… to add your clara_sk_live_… key.');
+        }
+        return new OpenAI({ apiKey: key, baseURL: HEYSALAD_INFERENCE_URL });
+    };
+
     const withFreshOpenAIClient = async <T>(
         provider: 'openai' | 'openai_compat',
         invoke: (client: OpenAI) => Promise<T> | T,
@@ -1170,6 +1215,17 @@ const llmClient = (() => {
                     return await withFreshAnthropicClient(async client =>
                         await client.messages.create(params as any)
                     ) as any;
+                }
+
+                if (provider === 'bedrock') {
+                    // Route through AWS Bedrock Runtime using bearer token auth.
+                    return await invokeBedrockModel(params) as any;
+                }
+
+                if (provider === 'heysalad') {
+                    // Route through HeySalad's managed inference proxy.
+                    const heySaladClient = await buildHeysSaladClient();
+                    return await heySaladClient.responses.create(params as any) as any;
                 }
 
                 // OpenAI: apply prompt caching best practices by default.
@@ -1314,11 +1370,12 @@ ipcMain.handle('api-keys:status', async () => {
 
 ipcMain.handle('api-keys:set', async (_event: Electron.IpcMainInvokeEvent, payload: { provider?: string; apiKey?: string }) => {
   try {
-    const provider = payload?.provider === 'anthropic'
-      ? 'anthropic'
-      : payload?.provider === 'openai_compat'
-        ? 'openai_compat'
-        : 'openai';
+    const p = payload?.provider;
+    const provider = p === 'anthropic' ? 'anthropic'
+      : p === 'openai_compat' ? 'openai_compat'
+      : p === 'bedrock' ? 'bedrock'
+      : p === 'heysalad' ? 'heysalad'
+      : 'openai';
     const apiKeyValue = typeof payload?.apiKey === 'string' ? payload.apiKey : '';
     await apiKeys.setApiKey(provider, apiKeyValue);
     return { ok: true };
@@ -1329,15 +1386,35 @@ ipcMain.handle('api-keys:set', async (_event: Electron.IpcMainInvokeEvent, paylo
 
 ipcMain.handle('api-keys:clear', async (_event: Electron.IpcMainInvokeEvent, payload: { provider?: string }) => {
   try {
-    const provider = payload?.provider === 'anthropic'
-      ? 'anthropic'
-      : payload?.provider === 'openai_compat'
-        ? 'openai_compat'
-        : 'openai';
+    const p = payload?.provider;
+    const provider = p === 'anthropic' ? 'anthropic'
+      : p === 'openai_compat' ? 'openai_compat'
+      : p === 'bedrock' ? 'bedrock'
+      : p === 'heysalad' ? 'heysalad'
+      : 'openai';
     await apiKeys.setApiKey(provider, '');
     return { ok: true };
   } catch (error: any) {
     return { ok: false, error: error?.message || 'Failed to clear API key.' };
+  }
+});
+
+ipcMain.handle('api-keys:bedrock:region:get', async () => {
+  try {
+    const region = await apiKeys.getBedrockRegion();
+    return { ok: true, region };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to get Bedrock region.' };
+  }
+});
+
+ipcMain.handle('api-keys:bedrock:region:set', async (_event: Electron.IpcMainInvokeEvent, payload: { region?: string }) => {
+  try {
+    const region = typeof payload?.region === 'string' ? payload.region : '';
+    await apiKeys.setBedrockRegion(region);
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Failed to set Bedrock region.' };
   }
 });
 
@@ -4257,8 +4334,8 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
   const win = new BrowserWindow({
     parent: parent ?? undefined,
     modal: !!parent,
-    width: 540,
-    height: 520,
+    width: 560,
+    height: 620,
     resizable: false,
     title: 'API Keys',
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload }
@@ -4355,17 +4432,33 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
         <option value=openai>OpenAI</option>
         <option value=openai_compat>OpenAI-compatible (custom provider)</option>
         <option value=anthropic>Anthropic</option>
+        <option value=bedrock>AWS Bedrock (BYK)</option>
+        <option value=heysalad>HeySalad Plan</option>
       </select>
     </div>
     <div class=row>
       <label id=apiKeyLabel>API Key</label>
-      <input id=apiKey placeholder="sk-…" autocomplete="off" />
+      <input id=apiKey placeholder="sk-…" autocomplete="off" type=password />
       <div id=apiKeyHint class=hint>Env fallback: <code>OPENAI_API_KEY</code></div>
     </div>
     <div class=row id=openaiCompatBaseRow>
       <label>Base URL (optional)</label>
       <input id=openaiCompatBase placeholder="https://openrouter.ai/api/v1" autocomplete="off" />
       <div class=hint>For OpenAI-compatible providers. Leave blank for api.openai.com</div>
+    </div>
+    <div class=row id=bedrockRegionRow style=display:none>
+      <label>AWS Region</label>
+      <select id=bedrockRegion>
+        <option value=us-east-1>us-east-1 (N. Virginia)</option>
+        <option value=us-east-2>us-east-2 (Ohio)</option>
+        <option value=us-west-2>us-west-2 (Oregon)</option>
+        <option value=eu-west-1>eu-west-1 (Ireland)</option>
+        <option value=eu-central-1>eu-central-1 (Frankfurt)</option>
+      </select>
+      <div class=hint>Region for Bedrock Runtime API calls</div>
+    </div>
+    <div class=row id=heySaladInfoRow style=display:none>
+      <div class=hint>Enter your <code>clara_sk_live_…</code> API key from <a id=heySaladLink href=# style="color:var(--ok)">heysalad.co/account/api-keys</a>. HeySalad Plan gives access to Claude models via HeySalad's managed inference.</div>
     </div>
   </div>
 
@@ -4403,6 +4496,12 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
       if (status && status.anthropic && status.anthropic.configured) {
         entries.push({ label: 'Anthropic', status: status.anthropic });
       }
+      if (status && status.bedrock && status.bedrock.configured) {
+        entries.push({ label: 'AWS Bedrock (' + (status.bedrock.region || 'us-east-1') + ')', status: status.bedrock });
+      }
+      if (status && status.heysalad && status.heysalad.configured) {
+        entries.push({ label: 'HeySalad Plan', status: status.heysalad });
+      }
 
       for (const entry of entries) {
         const row = document.createElement('div');
@@ -4436,6 +4535,8 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
         renderConfiguredKeys(res.status);
         const baseVal = res.status && res.status.openaiCompat && res.status.openaiCompat.baseUrl && res.status.openaiCompat.baseUrl.value;
         $('openaiCompatBase').value = baseVal || '';
+        const bedrockRegionVal = res.status && res.status.bedrock && res.status.bedrock.region;
+        if (bedrockRegionVal) $('bedrockRegion').value = bedrockRegionVal;
       } catch(e){
         setMsg(String(e && e.message || e || 'Failed to refresh status'), 'error');
       }
@@ -4443,23 +4544,38 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
 
     const syncProviderUi = () => {
       const raw = $('provider').value;
-      const provider = raw === 'anthropic' ? 'anthropic' : raw === 'openai_compat' ? 'openai_compat' : 'openai';
       const baseRow = $('openaiCompatBaseRow');
+      const bedrockRow = $('bedrockRegionRow');
+      const heySaladRow = $('heySaladInfoRow');
       const keyInput = $('apiKey');
       const keyHint = $('apiKeyHint');
       const keyLabel = $('apiKeyLabel');
-      if (provider === 'anthropic') {
-        baseRow.style.display = 'none';
+      baseRow.style.display = 'none';
+      bedrockRow.style.display = 'none';
+      heySaladRow.style.display = 'none';
+      keyInput.style.display = '';
+      keyHint.style.display = '';
+      keyLabel.style.display = '';
+      if (raw === 'anthropic') {
         keyInput.placeholder = 'sk-ant-…';
         keyHint.innerHTML = 'Env fallback: <code>ANTHROPIC_API_KEY</code>';
         keyLabel.textContent = 'Anthropic API Key';
-      } else if (provider === 'openai_compat') {
+      } else if (raw === 'openai_compat') {
         baseRow.style.display = '';
         keyInput.placeholder = 'sk-…';
         keyHint.innerHTML = 'Env fallback: <code>OPENAI_COMPAT_API_KEY</code>';
         keyLabel.textContent = 'OpenAI-compatible API Key';
+      } else if (raw === 'bedrock') {
+        bedrockRow.style.display = '';
+        keyInput.placeholder = 'ABSKQmVkcm9ja…';
+        keyHint.innerHTML = 'Env fallback: <code>AWS_BEARER_TOKEN_BEDROCK</code>';
+        keyLabel.textContent = 'AWS Bearer Token';
+      } else if (raw === 'heysalad') {
+        heySaladRow.style.display = '';
+        keyInput.placeholder = 'clara_sk_live_…';
+        keyHint.innerHTML = 'Env fallback: <code>HEYSALAD_API_KEY</code>';
+        keyLabel.textContent = 'HeySalad API Key';
       } else {
-        baseRow.style.display = 'none';
         keyInput.placeholder = 'sk-…';
         keyHint.innerHTML = 'Env fallback: <code>OPENAI_API_KEY</code>';
         keyLabel.textContent = 'OpenAI API Key';
@@ -4469,37 +4585,40 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
     $('close').addEventListener('click', ()=> window.close());
     $('provider').addEventListener('change', syncProviderUi);
 
+    $('heySaladLink').addEventListener('click', (e)=>{ e.preventDefault(); window.shell && window.shell.openExternal('https://heysalad.co/account/api-keys'); });
+
     $('save').addEventListener('click', async ()=>{
       try{
         setMsg('Saving…','error');
         const raw = $('provider').value;
-        const provider = raw === 'anthropic' ? 'anthropic' : raw === 'openai_compat' ? 'openai_compat' : 'openai';
         const apiKey = String($('apiKey').value||'').trim();
         const openaiCompatBase = String($('openaiCompatBase').value||'').trim();
 
-        if (provider === 'anthropic') {
-          if (!apiKey) {
-            setMsg('Enter an Anthropic API key to save.','error');
-            return;
-          }
+        if (raw === 'anthropic') {
+          if (!apiKey) { setMsg('Enter an Anthropic API key to save.','error'); return; }
           const r = await window.apiKeys.set('anthropic', apiKey);
           if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save Anthropic key');
-        } else if (provider === 'openai_compat') {
-          if (!apiKey && !openaiCompatBase) {
-            setMsg('Enter an OpenAI-compatible API key or base URL to save.','error');
-            return;
-          }
+        } else if (raw === 'openai_compat') {
+          if (!apiKey && !openaiCompatBase) { setMsg('Enter an OpenAI-compatible API key or base URL to save.','error'); return; }
           if (apiKey) {
             const r = await window.apiKeys.set('openai_compat', apiKey);
             if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save OpenAI-compatible key');
           }
           const rBase = await window.apiKeys.setCompatBaseUrl(openaiCompatBase);
-          if (!rBase || !rBase.ok) throw new Error((rBase && rBase.error) ? rBase.error : 'Failed to save OpenAI-compatible base URL');
+          if (!rBase || !rBase.ok) throw new Error((rBase && rBase.error) ? rBase.error : 'Failed to save base URL');
+        } else if (raw === 'bedrock') {
+          if (!apiKey) { setMsg('Enter your AWS Bearer Token to save.','error'); return; }
+          const r = await window.apiKeys.set('bedrock', apiKey);
+          if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save Bedrock token');
+          const region = String($('bedrockRegion').value||'us-east-1').trim();
+          const rRegion = await window.apiKeys.setBedrockRegion(region);
+          if (!rRegion || !rRegion.ok) throw new Error((rRegion && rRegion.error) ? rRegion.error : 'Failed to save region');
+        } else if (raw === 'heysalad') {
+          if (!apiKey) { setMsg('Enter your HeySalad API key to save.','error'); return; }
+          const r = await window.apiKeys.set('heysalad', apiKey);
+          if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save HeySalad key');
         } else {
-          if (!apiKey) {
-            setMsg('Enter an OpenAI API key to save.','error');
-            return;
-          }
+          if (!apiKey) { setMsg('Enter an OpenAI API key to save.','error'); return; }
           const r = await window.apiKeys.set('openai', apiKey);
           if (!r || !r.ok) throw new Error((r && r.error) ? r.error : 'Failed to save OpenAI key');
         }
@@ -4516,15 +4635,15 @@ function showApiKeysDialog(parent?: Electron.BrowserWindow | null): void {
     $('clear').addEventListener('click', async ()=>{
       try{
         setMsg('Clearing…','error');
-        const r1 = await window.apiKeys.clear('openai');
-        if (!r1 || !r1.ok) throw new Error((r1 && r1.error) ? r1.error : 'Failed to clear OpenAI key');
-        const rCompat = await window.apiKeys.clear('openai_compat');
-        if (!rCompat || !rCompat.ok) throw new Error((rCompat && rCompat.error) ? rCompat.error : 'Failed to clear OpenAI-compatible key');
-        const rBase = await window.apiKeys.clearCompatBaseUrl();
-        if (!rBase || !rBase.ok) throw new Error((rBase && rBase.error) ? rBase.error : 'Failed to clear OpenAI-compatible base URL');
-        const r2 = await window.apiKeys.clear('anthropic');
-        if (!r2 || !r2.ok) throw new Error((r2 && r2.error) ? r2.error : 'Failed to clear Anthropic key');
-        setMsg('Cleared stored keys.','ok');
+        await Promise.all([
+          window.apiKeys.clear('openai'),
+          window.apiKeys.clear('openai_compat'),
+          window.apiKeys.clearCompatBaseUrl(),
+          window.apiKeys.clear('anthropic'),
+          window.apiKeys.clear('bedrock'),
+          window.apiKeys.clear('heysalad'),
+        ]);
+        setMsg('Cleared all stored keys.','ok');
         await refresh();
       } catch(e){
         setMsg(String(e && e.message || e || 'Clear failed'), 'error');

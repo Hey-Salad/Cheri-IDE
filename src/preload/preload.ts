@@ -78,16 +78,20 @@ contextBridge.exposeInMainWorld('pty', {
 });
 
 contextBridge.exposeInMainWorld('apiKeys', {
-  status: (): Promise<{ ok: boolean; status?: { openai: { configured: boolean; source: 'keytar' | 'env' | null }; openaiCompat: { configured: boolean; source: 'keytar' | 'env' | null; baseUrl: { configured: boolean; source: 'keytar' | 'env' | null; value?: string } }; anthropic: { configured: boolean; source: 'keytar' | 'env' | null } }; error?: string }> =>
+  status: (): Promise<{ ok: boolean; status?: any; error?: string }> =>
     ipcRenderer.invoke('api-keys:status'),
-  set: (provider: 'openai' | 'openai_compat' | 'anthropic', apiKey: string): Promise<{ ok: boolean; error?: string }> =>
+  set: (provider: string, apiKey: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('api-keys:set', { provider, apiKey }),
-  clear: (provider: 'openai' | 'openai_compat' | 'anthropic'): Promise<{ ok: boolean; error?: string }> =>
+  clear: (provider: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('api-keys:clear', { provider }),
   setCompatBaseUrl: (baseUrl: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('api-keys:set-compat-base-url', { baseUrl }),
   clearCompatBaseUrl: (): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('api-keys:clear-compat-base-url'),
+  setBedrockRegion: (region: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('api-keys:bedrock:region:set', { region }),
+  getBedrockRegion: (): Promise<{ ok: boolean; region?: string; error?: string }> =>
+    ipcRenderer.invoke('api-keys:bedrock:region:get'),
   showDialog: (): void => ipcRenderer.send('api-keys:show-dialog'),
 });
 

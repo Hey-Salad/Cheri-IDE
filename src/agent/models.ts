@@ -1,5 +1,5 @@
 // Model metadata that drives both UI selection and API routing.
-export type Provider = 'openai' | 'openai_compat' | 'anthropic';
+export type Provider = 'openai' | 'openai_compat' | 'anthropic' | 'bedrock' | 'heysalad';
 
 export type Model = {
   name: string; // Display name shown in the UI
@@ -94,16 +94,106 @@ export const ANTHROPIC_MODELS: Record<string, Model> = {
   },
 };
 
+// AWS Bedrock models — authenticated via AWS_BEARER_TOKEN_BEDROCK
+export const BEDROCK_MODELS: Record<string, Model> = {
+  'claude-opus-4.5 (Bedrock)': {
+    name: 'claude-opus-4.5 (Bedrock)',
+    apiName: 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-opus-4.1 (Bedrock)': {
+    name: 'claude-opus-4.1 (Bedrock)',
+    apiName: 'us.anthropic.claude-opus-4-1-20250805-v1:0',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-sonnet-4.6 (Bedrock)': {
+    name: 'claude-sonnet-4.6 (Bedrock)',
+    apiName: 'us.anthropic.claude-sonnet-4-6',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-sonnet-4.5 (Bedrock)': {
+    name: 'claude-sonnet-4.5 (Bedrock)',
+    apiName: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-sonnet-4 (Bedrock)': {
+    name: 'claude-sonnet-4 (Bedrock)',
+    apiName: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+    type: 'chat', provider: 'bedrock', streaming: false,
+    contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-haiku-4.5 (Bedrock)': {
+    name: 'claude-haiku-4.5 (Bedrock)',
+    apiName: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    type: 'chat', provider: 'bedrock', streaming: false,
+    contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-3.7-sonnet (Bedrock)': {
+    name: 'claude-3.7-sonnet (Bedrock)',
+    apiName: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-3.5-sonnet-v2 (Bedrock)': {
+    name: 'claude-3.5-sonnet-v2 (Bedrock)',
+    apiName: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+    type: 'chat', provider: 'bedrock', streaming: false,
+    contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-sonnet-4.6-eu (Bedrock)': {
+    name: 'claude-sonnet-4.6-eu (Bedrock)',
+    apiName: 'eu.anthropic.claude-sonnet-4-6',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-sonnet-4.5-global (Bedrock)': {
+    name: 'claude-sonnet-4.5-global (Bedrock)',
+    apiName: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
+    type: 'extended_thinking', provider: 'bedrock', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+};
+
+// HeySalad managed inference — same models proxied via HeySalad's Bedrock account
+export const HEYSALAD_MODELS: Record<string, Model> = {
+  'claude-opus-4.5 (HeySalad)': {
+    name: 'claude-opus-4.5 (HeySalad)',
+    apiName: 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+    type: 'extended_thinking', provider: 'heysalad', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-sonnet-4.6 (HeySalad)': {
+    name: 'claude-sonnet-4.6 (HeySalad)',
+    apiName: 'us.anthropic.claude-sonnet-4-6',
+    type: 'extended_thinking', provider: 'heysalad', streaming: false,
+    extendedThinking: true, contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+  'claude-haiku-4.5 (HeySalad)': {
+    name: 'claude-haiku-4.5 (HeySalad)',
+    apiName: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    type: 'chat', provider: 'heysalad', streaming: false,
+    contextWindowTokens: 200_000, compactionTargetTokens: 100_000,
+  },
+};
+
 export const MODELS: Record<string, Model> = {
   ...OPENAI_MODELS,
   ...OPENAI_COMPAT_MODELS,
-  ...ANTHROPIC_MODELS
+  ...ANTHROPIC_MODELS,
+  ...BEDROCK_MODELS,
+  ...HEYSALAD_MODELS,
 };
 
 const BUILTIN_MODEL_KEYS = new Set(
   Object.keys(OPENAI_MODELS)
     .concat(Object.keys(OPENAI_COMPAT_MODELS))
     .concat(Object.keys(ANTHROPIC_MODELS))
+    .concat(Object.keys(BEDROCK_MODELS))
+    .concat(Object.keys(HEYSALAD_MODELS))
 );
 let customModels: Record<string, Model> = {};
 
@@ -123,6 +213,8 @@ export function setCustomModels(list: CustomModelInput[] | undefined | null): vo
       if (raw.provider === 'anthropic') provider = 'anthropic';
       else if (raw.provider === 'openai') provider = 'openai';
       else if (raw.provider === 'openai_compat') provider = 'openai_compat';
+      else if (raw.provider === 'bedrock') provider = 'bedrock';
+      else if (raw.provider === 'heysalad') provider = 'heysalad';
       const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : key;
       const apiName = typeof raw.apiName === 'string' && raw.apiName.trim() ? raw.apiName.trim() : undefined;
       const type = typeof raw.type === 'string' && raw.type.trim() ? raw.type.trim() : 'reasoning';
@@ -143,7 +235,7 @@ export function setCustomModels(list: CustomModelInput[] | undefined | null): vo
   for (const key of Object.keys(MODELS)) {
     delete (MODELS as any)[key];
   }
-  Object.assign(MODELS, { ...OPENAI_MODELS, ...OPENAI_COMPAT_MODELS, ...ANTHROPIC_MODELS, ...customModels });
+  Object.assign(MODELS, { ...OPENAI_MODELS, ...OPENAI_COMPAT_MODELS, ...ANTHROPIC_MODELS, ...BEDROCK_MODELS, ...HEYSALAD_MODELS, ...customModels });
 }
 
 export function getCustomModels(): Record<string, Model> {
@@ -163,6 +255,8 @@ export function supportsReasoning(modelName: string): boolean {
 export function getModelProvider(modelName: string): Provider {
   const model = MODELS[modelName];
   if (!model) {
+    if (modelName.includes('(Bedrock)')) return 'bedrock';
+    if (modelName.includes('(HeySalad)')) return 'heysalad';
     if (modelName.startsWith('claude-')) return 'anthropic';
     return 'openai_compat';
   }

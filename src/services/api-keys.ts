@@ -1,12 +1,13 @@
 import keytarModule from 'keytar';
 
-export type LlmProvider = 'openai' | 'openai_compat' | 'anthropic';
+export type LlmProvider = 'openai' | 'openai_compat' | 'anthropic' | 'bedrock' | 'heysalad';
 
 const keytar = (keytarModule as unknown as { default?: typeof keytarModule } & typeof keytarModule).default ?? keytarModule;
 
 const KEYTAR_SERVICE = 'cheri-api-keys';
 const LEGACY_OPENAI_BASE_URL_ACCOUNT = 'openai-base-url';
 const OPENAI_COMPAT_BASE_URL_ACCOUNT = 'openai-compat-base-url';
+const BEDROCK_REGION_ACCOUNT = 'bedrock-region';
 const OPENAI_COMPAT_BASE_URL_ENV_KEYS = ['OPENAI_COMPAT_BASE_URL', 'OPENAI_BASE_URL', 'OPENAI_API_BASE'];
 
 function normalizeKey(value: unknown): string {
@@ -22,6 +23,8 @@ function normalizeBaseUrl(value: unknown): string {
 function providerToEnvKey(provider: LlmProvider): string {
   if (provider === 'anthropic') return 'ANTHROPIC_API_KEY';
   if (provider === 'openai_compat') return 'OPENAI_COMPAT_API_KEY';
+  if (provider === 'bedrock') return 'AWS_BEARER_TOKEN_BEDROCK';
+  if (provider === 'heysalad') return 'HEYSALAD_API_KEY';
   return 'OPENAI_API_KEY';
 }
 
@@ -35,7 +38,11 @@ export async function setApiKey(provider: LlmProvider, apiKey: string): Promise<
       ? 'anthropic'
       : provider === 'openai_compat'
         ? 'openai_compat'
-        : 'openai';
+        : provider === 'bedrock'
+          ? 'bedrock'
+          : provider === 'heysalad'
+            ? 'heysalad'
+            : 'openai';
   const normalizedKey = normalizeKey(apiKey);
   const account = providerToAccount(normalizedProvider);
 
@@ -55,7 +62,11 @@ export async function getApiKey(provider: LlmProvider): Promise<{ key: string; s
       ? 'anthropic'
       : provider === 'openai_compat'
         ? 'openai_compat'
-        : 'openai';
+        : provider === 'bedrock'
+          ? 'bedrock'
+          : provider === 'heysalad'
+            ? 'heysalad'
+            : 'openai';
   const account = providerToAccount(normalizedProvider);
 
   try {
@@ -109,6 +120,23 @@ export async function getOpenAICompatBaseUrl(): Promise<{ url: string; source: '
   return { url: '', source: null };
 }
 
+export async function setBedrockRegion(region: string): Promise<void> {
+  const normalized = region.trim();
+  if (!normalized) {
+    try { await keytar.deletePassword(KEYTAR_SERVICE, BEDROCK_REGION_ACCOUNT); } catch {}
+    return;
+  }
+  await keytar.setPassword(KEYTAR_SERVICE, BEDROCK_REGION_ACCOUNT, normalized);
+}
+
+export async function getBedrockRegion(): Promise<string> {
+  try {
+    const stored = await keytar.getPassword(KEYTAR_SERVICE, BEDROCK_REGION_ACCOUNT);
+    if (stored) return stored;
+  } catch {}
+  return process.env['AWS_REGION'] || 'us-east-1';
+}
+
 // Backwards-compatible aliases (OPENAI_BASE_URL now treated as OpenAI-compatible).
 export async function setOpenAIBaseUrl(baseUrl: string): Promise<void> {
   return setOpenAICompatBaseUrl(baseUrl);
@@ -126,18 +154,20 @@ export async function getApiKeysStatus(): Promise<{
     baseUrl: { configured: boolean; source: 'keytar' | 'env' | null; value?: string };
   };
   anthropic: { configured: boolean; source: 'keytar' | 'env' | null };
+  bedrock: { configured: boolean; source: 'keytar' | 'env' | null; region: string };
+  heysalad: { configured: boolean; source: 'keytar' | 'env' | null };
 }> {
-  const [openai, openaiCompat, openaiCompatBase, anthropic] = await Promise.all([
+  const [openai, openaiCompat, openaiCompatBase, anthropic, bedrock, heysalad, bedrockRegion] = await Promise.all([
     getApiKey('openai'),
     getApiKey('openai_compat'),
     getOpenAICompatBaseUrl(),
     getApiKey('anthropic'),
+    getApiKey('bedrock'),
+    getApiKey('heysalad'),
+    getBedrockRegion(),
   ]);
   return {
-    openai: {
-      configured: !!openai.key,
-      source: openai.source,
-    },
+    openai: { configured: !!openai.key, source: openai.source },
     openaiCompat: {
       configured: !!openaiCompat.key,
       source: openaiCompat.source,
@@ -148,5 +178,7 @@ export async function getApiKeysStatus(): Promise<{
       },
     },
     anthropic: { configured: !!anthropic.key, source: anthropic.source },
+    bedrock: { configured: !!bedrock.key, source: bedrock.source, region: bedrockRegion },
+    heysalad: { configured: !!heysalad.key, source: heysalad.source },
   };
 }
