@@ -28,7 +28,7 @@ module.exports = {
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
     target: ['dmg', 'zip'],
-    icon: 'resources/cheri-1024.png',
+    icon: 'resources/Cheri.icns',
     // Code signing (uses environment variables)
     identity: process.env.CSC_NAME || process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'false' ? null : undefined,
     type: 'distribution',
