@@ -5075,6 +5075,32 @@
     /* stick to left */
     .footer-center {
       justify-self: center;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.3);
+      font-family: 'Figtree', sans-serif;
+    }
+
+    .footer-center .heysalad-logo {
+      height: 16px;
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+
+    .footer-center:hover .heysalad-logo {
+      opacity: 0.8;
+    }
+
+    body.theme-light .footer-center {
+      color: rgba(0, 0, 0, 0.4);
+    }
+
+    @container (max-width: 720px) {
+      .footer-center {
+        display: none;
+      }
     }
 
     /* truly centered */
@@ -5673,6 +5699,12 @@ body.theme-light .workspace-change-status.st-renamed { border-color: rgba(168, 8
 
               <!-- Additional working directory badge (hidden by default) -->
               <div id="additional-dir-container" hidden></div>
+            </div>
+
+            <!-- center: branding -->
+            <div class="footer-center">
+              <span>Powered by</span>
+              <img src="../../resources/heysalad-logo-white.svg" alt="HeySalad" class="heysalad-logo">
             </div>
 
             <!-- right: send -->
