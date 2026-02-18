@@ -17,7 +17,7 @@ fi
 # Apple Developer settings
 export APPLE_TEAM_ID="A24823SWLS"
 export APPLE_ID="peter@heysalad.co"  # Update if needed
-export CSC_NAME="Developer ID Application: SALADHR TECHNOLOGY LTD (A24823SWLS)"
+export CSC_NAME="SALADHR TECHNOLOGY LTD (A24823SWLS)"
 
 # Optional: Set these if you want notarization (recommended)
 # export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"  # Generate at appleid.apple.com
