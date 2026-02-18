@@ -1,4 +1,4 @@
-// Lightweight MCP host/adapter for BrilliantCode (Electron main process)
+// Lightweight MCP host/adapter for Cheri (Electron main process)
 // - Loads MCP server config from workspace and user-level JSON
 // - Spawns stdio servers, connects a client via official MCP TypeScript client
 // - Exposes flattened tool schemas and handlers consumable by AgentSession
@@ -96,7 +96,7 @@ function mergeConfigSource(target: McpConfig, source: any): void {
   }
 }
 
-// Load MCP config from workspace (package.json -> mcpServers) and user (~/.brilliantcode/mcp.json)
+// Load MCP config from workspace (package.json -> mcpServers) and user (~/.cheri/mcp.json)
 function loadMcpConfig(workingDir: string): McpConfig {
   const merged: McpConfig = {};
   try {
@@ -107,7 +107,7 @@ function loadMcpConfig(workingDir: string): McpConfig {
   try {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     if (home) {
-      const userCfgPath = path.join(home, '.brilliantcode', 'mcp.json');
+      const userCfgPath = path.join(home, '.cheri', 'mcp.json');
       const userCfg = readJson(userCfgPath);
       mergeConfigSource(merged, userCfg);
     }
@@ -264,7 +264,7 @@ export class McpHost {
       });
 
       const clientInfo = {
-        name: 'BrilliantCode',
+        name: 'Cheri',
         version: (() => {
           try { return app.getVersion(); } catch { return 'dev'; }
         })(),

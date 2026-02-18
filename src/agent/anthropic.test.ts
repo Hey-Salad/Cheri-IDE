@@ -20,7 +20,7 @@ describe('Anthropic Provider Support', () => {
 
   describe('ChatStore - Session Provider Assignment', () => {
     let chatStore: ChatStore;
-    const testDir = '/tmp/test-brilliantcode';
+    const testDir = '/tmp/test-cheri';
 
     beforeEach(() => {
       chatStore = new ChatStore();
@@ -246,7 +246,7 @@ describe('Anthropic Provider Support', () => {
   describe('Session Provider Locking', () => {
     it('should prevent provider switching mid-conversation', async () => {
       const chatStore = new ChatStore();
-      const testDir = '/tmp/test-brilliantcode';
+      const testDir = '/tmp/test-cheri';
 
       // Create Anthropic session
       const session = await chatStore.create(testDir, { provider: 'anthropic' });
@@ -290,7 +290,7 @@ describe('Anthropic Provider Support', () => {
 describe('Integration: Full Anthropic Conversation Flow', () => {
   it('should maintain conversation integrity with native format', async () => {
     const chatStore = new ChatStore();
-    const testDir = '/tmp/test-brilliantcode';
+    const testDir = '/tmp/test-cheri';
 
     // Create session with Anthropic provider
     const session = await chatStore.create(testDir, {

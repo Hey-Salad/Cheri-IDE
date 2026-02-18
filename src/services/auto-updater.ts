@@ -1,5 +1,5 @@
 /**
- * Auto-updater service for BrilliantCode
+ * Auto-updater service for Cheri
  * 
  * Uses electron-updater to check for, download, and install updates
  * from the CloudFront-backed S3 releases bucket.

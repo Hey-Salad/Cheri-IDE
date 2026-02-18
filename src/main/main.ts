@@ -3266,11 +3266,11 @@ async function bootstrapApplication(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  // Migrate user data from .brilliantcode to .cheri (one-time on first launch)
+  // Migrate user data from legacy dir to .cheri (one-time on first launch)
   try {
     const migrationResult = await migrateUserData();
     if (migrationResult.migrated) {
-      console.log('[App] User data migrated successfully from .brilliantcode to .cheri');
+      console.log('[App] User data migrated successfully from legacy dir to .cheri');
     }
     if (migrationResult.error) {
       console.error('[App] Migration error:', migrationResult.error);
@@ -4744,7 +4744,7 @@ These shortcuts work from anywhere in the app.`;
       {
         label: 'Learn More',
         click: () => {
-          shell.openExternal('https://brilliantai.co');
+          shell.openExternal('https://heysalad.co');
         }
       }
     ]

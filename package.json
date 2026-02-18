@@ -1,6 +1,6 @@
 {
   "name": "@heysalad/cheri",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "AI that remembers your code - by HeySalad",
   "main": "dist/main/main.js",
   "type": "module",
@@ -71,10 +71,10 @@
         "dmg",
         "zip"
       ],
-      "icon": "resources/BrilliantCode.icns"
+      "icon": "resources/cheri-512.png"
     },
     "dmg": {
-      "icon": "resources/BrilliantCode.icns"
+      "icon": "resources/cheri-512.png"
     },
     "win": {
       "target": [
@@ -86,7 +86,7 @@
           ]
         }
       ],
-      "artifactName": "BrilliantCode-open-${version}-${arch}.exe"
+      "artifactName": "Cheri-${version}-${arch}.exe"
     },
     "linux": {
       "target": [

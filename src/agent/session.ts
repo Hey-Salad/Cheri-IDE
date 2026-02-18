@@ -791,7 +791,7 @@ async function buildAgentsMdSection(workingDir: string): Promise<string> {
 
 function buildSystemPrompt(workingDir: string, dirLines: string[], extra?: string): string {
   return [
-    `You are BrilliantCode, an autonomous AI engineer working inside an Electron IDE.`,
+    `You are Cheri, an autonomous AI engineer working inside an Electron IDE.`,
     `You terminal access gives you same level of access as a human developer would have inside this IDE, inclusing using installed CLIs, git etc.`,
     `- Integrated terminals you can manage via tools:`,
     `    • create_terminal({ cwd?, cols?, rows? }) -> returns a terminal id (default terminal id is "default").`,
@@ -879,7 +879,7 @@ type SystemPromptParts = { combined: string; staticPrompt: string; dynamicPrompt
 function buildStaticSystemPrompt(): string {
   // NOTE: keep this as stable as possible to maximize prompt caching.
   return [
-    `You are BrilliantCode, an autonomous AI engineer working inside an Electron IDE.`,
+    `You are Cheri, an autonomous AI engineer working inside an Electron IDE.`,
     `You terminal access gives you same level of access as a human developer would have inside this IDE, inclusing using installed CLIs, git etc.`,
     `- Integrated terminals you can manage via tools:`,
     `    • create_terminal({ cwd?, cols?, rows? }) -> returns a terminal id (default terminal id is "default").`,

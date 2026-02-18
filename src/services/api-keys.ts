@@ -4,7 +4,7 @@ export type LlmProvider = 'openai' | 'openai_compat' | 'anthropic';
 
 const keytar = (keytarModule as unknown as { default?: typeof keytarModule } & typeof keytarModule).default ?? keytarModule;
 
-const KEYTAR_SERVICE = 'brilliantcode-api-keys';
+const KEYTAR_SERVICE = 'cheri-api-keys';
 const LEGACY_OPENAI_BASE_URL_ACCOUNT = 'openai-base-url';
 const OPENAI_COMPAT_BASE_URL_ACCOUNT = 'openai-compat-base-url';
 const OPENAI_COMPAT_BASE_URL_ENV_KEYS = ['OPENAI_COMPAT_BASE_URL', 'OPENAI_BASE_URL', 'OPENAI_API_BASE'];

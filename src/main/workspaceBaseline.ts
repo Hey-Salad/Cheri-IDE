@@ -25,7 +25,7 @@ type BaselineManifest = {
 
 type ChangeFile = { path: string; status: string; additions?: number | null; deletions?: number | null };
 
-const BASELINE_ROOT = path.join(os.homedir(), '.brilliantcode', 'baselines');
+const BASELINE_ROOT = path.join(os.homedir(), '.cheri', 'baselines');
 const MANIFEST_NAME = 'baseline-manifest.json';
 const FILES_DIR_NAME = 'files';
 

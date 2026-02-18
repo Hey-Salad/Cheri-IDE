@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 
 /**
- * Migrate user data from ~/.brilliantcode to ~/.cheri
+ * Migrate user data from legacy dir to ~/.cheri
  * Run once on first app launch after rebranding
  */
 export async function migrateUserData(): Promise<{ migrated: boolean; error?: string }> {

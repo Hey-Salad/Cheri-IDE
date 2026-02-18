@@ -69,9 +69,9 @@ export function getCurrentVersion(): string {
         if (fs.existsSync(pkgPath)) {
           const pkgContent = fs.readFileSync(pkgPath, 'utf-8');
           const pkg = JSON.parse(pkgContent);
-          if (pkg.version && pkg.name === 'brilliantcode') {
+          if (pkg.version && pkg.name === '@heysalad/cheri') {
             cachedVersion = pkg.version;
-            console.log('[version-check] Found BrilliantCode version in', pkgPath, ':', cachedVersion);
+            console.log('[version-check] Found Cheri version in', pkgPath, ':', cachedVersion);
             return cachedVersion!;
           }
         }
@@ -80,7 +80,7 @@ export function getCurrentVersion(): string {
       }
     }
 
-    console.error('[version-check] Could not find BrilliantCode package.json');
+    console.error('[version-check] Could not find Cheri package.json');
     cachedVersion = '0.0.0';
     return cachedVersion!;
   } catch (error) {

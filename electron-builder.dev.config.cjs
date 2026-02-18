@@ -1,6 +1,6 @@
 module.exports = {
-  appId: 'co.brilliantai.brilliantcode.dev',
-  productName: 'BrilliantCode Dev',
+  appId: 'co.heysalad.cheri.dev',
+  productName: 'Cheri Dev',
   directories: {
     output: 'release-dev',
     buildResources: 'resources',
@@ -12,8 +12,8 @@ module.exports = {
   ],
   protocols: [
     {
-      name: 'BrilliantCode Dev Deep Link',
-      schemes: ['brilliantcode-dev'],
+      name: 'Cheri Dev Deep Link',
+      schemes: ['cheri-dev'],
     },
   ],
   extraResources: [
@@ -24,7 +24,7 @@ module.exports = {
     hardenedRuntime: false,
     gatekeeperAssess: false,
     target: ['dir'],
-    icon: 'resources/BrilliantCode.icns',
+    icon: 'resources/cheri-512.png',
   },
 };
 
