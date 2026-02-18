@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION="1.0.4"
+VERSION="1.0.5"
 APPIMAGE_NAME="Cheri-${VERSION}-arm64.AppImage"
 DOWNLOAD_URL="https://github.com/Hey-Salad/Cheri-IDE/releases/download/v${VERSION}/${APPIMAGE_NAME}"
 
