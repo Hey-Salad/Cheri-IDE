@@ -1,31 +1,16 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Cherry icon for Cheri by HeySalad -->
-  <!-- Two cherries connected by stems -->
-  
+  <!-- Simplified two-cherry favicon -->
   <!-- Stems -->
-  <path d="M16 4 C16 4, 14 8, 12 10" stroke="#10B981" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-  <path d="M16 4 C16 4, 18 8, 20 10" stroke="#10B981" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-  
-  <!-- Leaf -->
-  <ellipse cx="16" cy="3" rx="3" ry="1.5" fill="#10B981"/>
-  
+  <path d="M16 7 C 15 5, 12 3, 11 5" stroke="#10B981" stroke-width="1.5" fill="none"/>
+  <path d="M16 7 C 17 5, 20 3, 21 5" stroke="#10B981" stroke-width="1.5" fill="none"/>
+
   <!-- Left cherry -->
-  <circle cx="12" cy="18" r="7" fill="#ed4c4c"/>
-  <circle cx="12" cy="18" r="7" fill="url(#cherry-gradient)"/>
-  
+  <circle cx="11" cy="20" r="9" fill="#ED4C4C"/>
+
   <!-- Right cherry -->
-  <circle cx="20" cy="18" r="7" fill="#ed4c4c"/>
-  <circle cx="20" cy="18" r="7" fill="url(#cherry-gradient)"/>
-  
+  <circle cx="21" cy="20" r="9" fill="#ED4C4C"/>
+
   <!-- Highlights -->
-  <circle cx="10" cy="15" r="2" fill="white" opacity="0.4"/>
-  <circle cx="18" cy="15" r="2" fill="white" opacity="0.4"/>
-  
-  <!-- Gradient definition -->
-  <defs>
-    <radialGradient id="cherry-gradient">
-      <stop offset="0%" stop-color="#f05555" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#ed4c4c" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+  <ellipse cx="11" cy="18" rx="3" ry="2" fill="#faa09a" opacity="0.6"/>
+  <ellipse cx="21" cy="18" rx="3" ry="2" fill="#faa09a" opacity="0.6"/>
 </svg>

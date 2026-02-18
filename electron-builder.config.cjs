@@ -28,7 +28,7 @@ module.exports = {
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
     target: ['dmg', 'zip'],
-    icon: 'resources/BrilliantCode.icns',
+    icon: 'resources/cheri-1024.png',
     // Code signing (uses environment variables)
     identity: process.env.CSC_NAME || process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'false' ? null : undefined,
     type: 'distribution',
@@ -38,11 +38,12 @@ module.exports = {
     } : false
   },
   dmg: {
-    icon: 'resources/BrilliantCode.icns'
+    icon: 'resources/cheri-512.png'
   },
   win: {
     target: [{ target: 'nsis', arch: ['x64', 'arm64'] }],
-    artifactName: 'cheri-${version}-${arch}.${ext}'
+    artifactName: 'cheri-${version}-${arch}.${ext}',
+    icon: 'resources/cheri.ico'
   },
   linux: {
     target: [

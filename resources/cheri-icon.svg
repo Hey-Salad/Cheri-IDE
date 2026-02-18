@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Two cherries icon - simple and clean -->
+
+  <!-- Stems -->
+  <path d="M256 120 C 240 80, 200 50, 180 80" stroke="#10B981" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <path d="M256 120 C 272 80, 312 50, 332 80" stroke="#10B981" stroke-width="12" fill="none" stroke-linecap="round"/>
+
+  <!-- Leaf -->
+  <path d="M256 120 Q 290 100 300 110 Q 290 120 256 120" fill="#10B981"/>
+
+  <!-- Left cherry -->
+  <circle cx="180" cy="320" r="140" fill="#ED4C4C"/>
+  <path d="M120 280 Q 160 260 200 280" fill="#faa09a" opacity="0.5"/>
+
+  <!-- Right cherry -->
+  <circle cx="332" cy="320" r="140" fill="#ED4C4C"/>
+  <path d="M272 280 Q 312 260 352 280" fill="#faa09a" opacity="0.5"/>
+
+  <!-- Shadows for depth -->
+  <ellipse cx="180" cy="360" rx="80" ry="60" fill="#873535" opacity="0.3"/>
+  <ellipse cx="332" cy="360" rx="80" ry="60" fill="#873535" opacity="0.3"/>
+</svg>
