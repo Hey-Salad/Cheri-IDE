@@ -28,7 +28,14 @@ module.exports = {
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
     target: ['dmg', 'zip'],
-    icon: 'resources/BrilliantCode.icns'
+    icon: 'resources/BrilliantCode.icns',
+    // Code signing (uses environment variables)
+    identity: process.env.CSC_NAME || process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'false' ? null : undefined,
+    type: 'distribution',
+    // Notarization (optional, requires APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD)
+    notarize: process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD ? {
+      teamId: process.env.APPLE_TEAM_ID || 'A24823SWLS'
+    } : false
   },
   dmg: {
     icon: 'resources/BrilliantCode.icns'
