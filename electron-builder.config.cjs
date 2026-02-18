@@ -1,7 +1,7 @@
 module.exports = {
-  appId: 'co.brilliantai.brilliantcode',
-  productName: 'BrilliantCode',
-  artifactName: 'brilliantcode-open-${version}-${arch}.${ext}',
+  appId: 'co.heysalad.cheri',
+  productName: 'Cheri',
+  artifactName: 'cheri-${version}-${arch}.${ext}',
   directories: {
     output: 'release',
     buildResources: 'resources'
@@ -13,13 +13,13 @@ module.exports = {
   ],
   protocols: [
     {
-      name: 'BrilliantCode Deep Link',
-      schemes: ['brilliantcode']
+      name: 'Cheri Deep Link',
+      schemes: ['cheri']
     }
   ],
-  // Auto-update configuration (optional; set `BRILLIANTCODE_PUBLISH_URL` to enable)
-  publish: process.env.BRILLIANTCODE_PUBLISH_URL
-    ? { provider: 'generic', url: process.env.BRILLIANTCODE_PUBLISH_URL }
+  // Auto-update configuration (optional; set `CHERI_PUBLISH_URL` to enable)
+  publish: process.env.CHERI_PUBLISH_URL
+    ? { provider: 'generic', url: process.env.CHERI_PUBLISH_URL }
     : undefined,
   mac: {
     category: 'public.app-category.developer-tools',
@@ -35,7 +35,7 @@ module.exports = {
   },
   win: {
     target: [{ target: 'nsis', arch: ['x64', 'arm64'] }],
-    artifactName: 'brilliantcode-open-${version}-${arch}.${ext}'
+    artifactName: 'cheri-${version}-${arch}.${ext}'
   },
   linux: {
     target: [
@@ -44,6 +44,6 @@ module.exports = {
       { target: 'rpm', arch: ['x64', 'arm64'] },
     ],
     category: 'Utility',
-    maintainer: 'Brilliant AI Technologies Ltd'
+    maintainer: 'HeySalad Inc.'
   }
 };

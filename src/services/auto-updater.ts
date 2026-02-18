@@ -47,7 +47,7 @@ export interface UpdateStatusPayload {
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UPDATE_FEED_URL = (process.env.BRILLIANTCODE_UPDATE_FEED_URL || '').trim();
+const UPDATE_FEED_URL = (process.env.CHERI_UPDATE_FEED_URL || '').trim();
 
 let cachedAutoUpdater: any | null = null;
 
@@ -106,7 +106,7 @@ const log = {
 function configureUpdateFeed(): void {
   try {
     if (!UPDATE_FEED_URL) {
-      log.info('Auto-updater disabled (no BRILLIANTCODE_UPDATE_FEED_URL configured).');
+      log.info('Auto-updater disabled (no CHERI_UPDATE_FEED_URL configured).');
       return;
     }
     const autoUpdater = getAutoUpdater();

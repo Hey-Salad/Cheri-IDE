@@ -50,7 +50,7 @@ export type StoredChat = {
   workspaceChanges?: WorkspaceChangesSnapshot;
 };
 
-const ROOT_DIR = path.join(os.homedir(), '.brilliantcode');
+const ROOT_DIR = path.join(os.homedir(), '.cheri');
 const SESSIONS_DIR = path.join(ROOT_DIR, 'sessions');
 
 // Persisted file format, versioned for future schema migrations

@@ -42,6 +42,18 @@ globalAny.MonacoEnvironment = globalAny.MonacoEnvironment || {
   },
 };
 
+// Debounce helper for performance optimization
+function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
+
 const addressBar = document.getElementById('address-bar') as HTMLElement;
 const form = document.getElementById('address-form') as HTMLFormElement;
 const input = document.getElementById('address-input') as HTMLInputElement;
@@ -101,41 +113,22 @@ const tabTerminal = document.getElementById('tab-terminal') as HTMLButtonElement
 const tabCode = document.getElementById('tab-code') as HTMLButtonElement;
 
 
-// ANSI color codes for the welcome animation: green, blue, orange, yellow
-const WELCOME_COLORS = [
-  '\x1b[1;32m', // bright green
-  '\x1b[1;34m', // bright blue
-  '\x1b[1;38;5;208m', // orange (256-color)
-  '\x1b[1;33m', // bright yellow
-];
-
-function getWelcomeArt(colorIndex: number): string {
-  const color = WELCOME_COLORS[colorIndex % WELCOME_COLORS.length];
-  return `\n  ${color}BrilliantCode\x1b[0m \x1b[90m- Your autonomous AI engineer\x1b[0m\n`;
+// Plain terminal welcome - no bright colors, developer-friendly
+function getWelcomeArt(_colorIndex: number): string {
+  // Plain white "Cheri" with gray tagline - no animation, no bright colors
+  return `\n  \x1b[1;37mCheri\x1b[0m \x1b[90m- AI that remembers your code\x1b[0m\n`;
 }
 
 function pickWelcomeArt(_cols: number): string {
   return getWelcomeArt(0);
 }
 
-// Animation state for color cycling
-let welcomeColorIndex = 0;
+// No welcome animation - keep it plain and professional
 const welcomeAnimationIntervals = new Map<string, ReturnType<typeof setInterval>>();
 
-function startWelcomeAnimation(terminalId: string, term: Terminal): void {
-  // Clear any existing animation for this terminal
+function startWelcomeAnimation(terminalId: string, _term: Terminal): void {
+  // No animation - plain black UI for developer comfort
   stopWelcomeAnimation(terminalId);
-  
-  welcomeColorIndex = 0;
-  
-  const interval = setInterval(() => {
-    welcomeColorIndex = (welcomeColorIndex + 1) % WELCOME_COLORS.length;
-    const color = WELCOME_COLORS[welcomeColorIndex];
-    // Move cursor to the position of "BrilliantCode" (line 2, column 3) and rewrite with new color
-    // Save cursor, move to line 2 col 3, write colored text, restore cursor
-    const updateSequence = `\x1b7\x1b[2;3H${color}BrilliantCode\x1b[0m\x1b8`;
-    try { term.write(updateSequence); } catch { }
-  }, 800); // Change color every 800ms
   
   welcomeAnimationIntervals.set(terminalId, interval);
 }
@@ -748,11 +741,16 @@ async function ensureTerminalInstance(id: string, opts?: { select?: boolean; ini
     } catch { }
   }
 
-  const resizeObserver = new ResizeObserver(() => {
+  // Debounced resize handler to reduce IPC flooding during window drag (150ms delay)
+  const debouncedResize = debounce(() => {
     try {
       fit.fit();
       window.pty?.resize?.(term.cols, term.rows, id);
     } catch { }
+  }, 150);
+
+  const resizeObserver = new ResizeObserver(() => {
+    debouncedResize();
   });
   resizeObserver.observe(container);
 
@@ -1404,7 +1402,63 @@ const codeState = {
   autoRefreshInterval: null as number | null,
 };
 
-const directoryCache = new Map<string, CodeEntry[]>();
+// LRU cache for directory listings to prevent unbounded memory growth
+class LRUCache<K, V> {
+  private cache = new Map<K, { value: V; timestamp: number }>();
+  constructor(private maxSize: number, private maxAgeMs: number) {}
+
+  get(key: K): V | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+
+    // Check if expired
+    if (Date.now() - entry.timestamp > this.maxAgeMs) {
+      this.cache.delete(key);
+      return undefined;
+    }
+
+    // Update timestamp (LRU refresh)
+    entry.timestamp = Date.now();
+    return entry.value;
+  }
+
+  set(key: K, value: V): void {
+    // Evict oldest entry if at capacity
+    if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
+      const oldestKey = Array.from(this.cache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)[0]?.[0];
+      if (oldestKey !== undefined) {
+        this.cache.delete(oldestKey);
+      }
+    }
+
+    this.cache.set(key, { value, timestamp: Date.now() });
+  }
+
+  has(key: K): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+
+    // Check if expired
+    if (Date.now() - entry.timestamp > this.maxAgeMs) {
+      this.cache.delete(key);
+      return false;
+    }
+
+    return true;
+  }
+
+  delete(key: K): void {
+    this.cache.delete(key);
+  }
+
+  keys(): K[] {
+    return Array.from(this.cache.keys());
+  }
+}
+
+// Use LRU cache for directory listings (max 100 entries, 60s TTL)
+const directoryCache = new LRUCache<string, CodeEntry[]>(100, 60000);
 const expandedDirs = new Set<string>();
 const loadingDirs = new Set<string>();
 

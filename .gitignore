@@ -151,4 +151,6 @@ src/renderer/**/*.js.map
 src/renderer/**/*.map
 
 # cursor files
-.cursor
+.cursor/release/
+/dist/
+node_modules/

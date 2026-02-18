@@ -14,9 +14,9 @@ const shouldSignMac = hasNotarizeCreds || process.env.ENABLE_MAC_SIGNING === 'tr
 
 const config = {
   packagerConfig: {
-    appId: 'co.brilliantai.brilliantcode',
+    appId: 'co.heysalad.cheri',
     appCategoryType: "public.app-category.developer-tools",
-    icon: path.resolve(__dirname, 'resources/BrilliantCode.icns'),
+    icon: path.resolve(__dirname, 'resources/Cheri-icon.svg'),
     asar: {
       unpack: '{**/{.**,**}/**/*.node,**/{.**,**}/**/*.node}',
     },
@@ -25,7 +25,7 @@ const config = {
       /^\/out-fail($|\/)/,
       /^\/out-test($|\/)/,
       /^\/release($|\/)/,
-      /^\/brilliantcode-darwin-arm64($|\/)/,
+      /^\/cheri-darwin-arm64($|\/)/,
       /^\/forge-output\.log$/,
       /^\/forge-debug\.log$/,
       /^\/dist\/cli($|\/)/,
@@ -61,8 +61,8 @@ const config = {
       : undefined,
     protocols: [
       {
-        name: 'BrilliantCode Deep Link',
-        schemes: ['brilliantcode'],
+        name: 'Cheri Deep Link',
+        schemes: ['cheri'],
       },
     ],
   },

@@ -4,8 +4,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 // Version check service for update notifications.
-// Configure an endpoint via `BRILLIANTCODE_VERSION_CHECK_URL` (leave unset to disable).
-const VERSION_CHECK_URL = (process.env.BRILLIANTCODE_VERSION_CHECK_URL || '').trim();
+// Configure an endpoint via `CHERI_VERSION_CHECK_URL` (leave unset to disable).
+const VERSION_CHECK_URL = (process.env.CHERI_VERSION_CHECK_URL || '').trim();
 
 export interface VersionInfo {
   latest_version: string;

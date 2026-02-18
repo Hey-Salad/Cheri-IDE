@@ -1,7 +1,7 @@
 {
-  "name": "brilliantcode",
+  "name": "@heysalad/cheri",
   "version": "1.0.2",
-  "description": "Your AI engineer, powered by the best frontier AI models.",
+  "description": "AI that remembers your code - by HeySalad",
   "main": "dist/main/main.js",
   "type": "module",
   "scripts": {
@@ -32,8 +32,8 @@
     "make": "electron-forge make"
   },
   "build": {
-    "appId": "co.brilliantai.brilliantcode",
-    "productName": "BrilliantCode",
+    "appId": "co.heysalad.cheri",
+    "productName": "Cheri",
     "directories": {
       "output": "release",
       "buildResources": "resources"
@@ -45,9 +45,9 @@
     ],
     "protocols": [
       {
-        "name": "BrilliantCode Deep Link",
+        "name": "Cheri Deep Link",
         "schemes": [
-          "brilliantcode"
+          "cheri"
         ]
       }
     ],
@@ -97,14 +97,17 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brilliantai/BrilliantCode.git"
+    "url": "git+https://github.com/Hey-Salad/cheri.git"
   },
-  "author": "Jennifer Olafenwa",
+  "author": {
+    "name": "HeySalad Inc.",
+    "email": "hello@heysalad.co"
+  },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/brilliantai/BrilliantCode/issues"
+    "url": "https://github.com/Hey-Salad/cheri/issues"
   },
-  "homepage": "https://github.com/brilliantai/BrilliantCode#readme",
+  "homepage": "https://heysalad.co/cheri",
   "devDependencies": {
     "@electron-forge/cli": "^7.10.2",
     "@electron-forge/maker-deb": "^7.10.2",

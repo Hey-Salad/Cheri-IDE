@@ -19,9 +19,11 @@ export default defineConfig({
         welcome: path.resolve(__dirname, 'src/renderer/welcome.html'),
       },
       output: {
-        // Keep Monaco in its own chunk to avoid bloating childIndex.*
+        // Keep large dependencies in separate chunks for better code splitting
         manualChunks(id) {
           if (id.includes('monaco-editor')) return 'monaco';
+          if (id.includes('xterm') || id.includes('xterm-addon')) return 'xterm';
+          if (id.includes('highlight.js')) return 'highlight';
         },
       },
     },

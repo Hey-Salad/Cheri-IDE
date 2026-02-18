@@ -1,31 +1,11 @@
 import hljs from 'highlight.js/lib/core';
 import { setupUpdateCheck } from './updateCheck.js';
+// Load only essential languages at startup for better performance
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
 import jsonLang from 'highlight.js/lib/languages/json';
-import xml from 'highlight.js/lib/languages/xml';
-import css from 'highlight.js/lib/languages/css';
 import bash from 'highlight.js/lib/languages/bash';
-import diff from 'highlight.js/lib/languages/diff';
-import python from 'highlight.js/lib/languages/python';
 import markdown from 'highlight.js/lib/languages/markdown';
-import go from 'highlight.js/lib/languages/go';
-import rust from 'highlight.js/lib/languages/rust';
-import java from 'highlight.js/lib/languages/java';
-import cpp from 'highlight.js/lib/languages/cpp';
-import cLang from 'highlight.js/lib/languages/c';
-import csharp from 'highlight.js/lib/languages/csharp';
-import ruby from 'highlight.js/lib/languages/ruby';
-import php from 'highlight.js/lib/languages/php';
-import sql from 'highlight.js/lib/languages/sql';
-import yaml from 'highlight.js/lib/languages/yaml';
-import ini from 'highlight.js/lib/languages/ini';
-import swift from 'highlight.js/lib/languages/swift';
-import kotlin from 'highlight.js/lib/languages/kotlin';
-import scala from 'highlight.js/lib/languages/scala';
-import shell from 'highlight.js/lib/languages/shell';
-import dockerfile from 'highlight.js/lib/languages/dockerfile';
-import plaintext from 'highlight.js/lib/languages/plaintext';
 import 'highlight.js/styles/github-dark.css';
 import { createIcons, Trash } from 'lucide';
 
@@ -33,32 +13,66 @@ import { createIcons, Trash } from 'lucide';
 // surface, and renders live AI responses (including tool progress + reasoning
 // traces) as they stream in from the main process.
 
+// Register essential languages immediately
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('typescript', typescript);
 hljs.registerLanguage('json', jsonLang);
-hljs.registerLanguage('xml', xml);
-hljs.registerLanguage('css', css);
 hljs.registerLanguage('bash', bash);
-hljs.registerLanguage('diff', diff);
-hljs.registerLanguage('python', python);
 hljs.registerLanguage('markdown', markdown);
-hljs.registerLanguage('go', go);
-hljs.registerLanguage('rust', rust);
-hljs.registerLanguage('java', java);
-hljs.registerLanguage('cpp', cpp);
-hljs.registerLanguage('c', cLang);
-hljs.registerLanguage('csharp', csharp);
-hljs.registerLanguage('ruby', ruby);
-hljs.registerLanguage('php', php);
-hljs.registerLanguage('sql', sql);
-hljs.registerLanguage('yaml', yaml);
-hljs.registerLanguage('toml', ini);
-hljs.registerLanguage('swift', swift);
-hljs.registerLanguage('kotlin', kotlin);
-hljs.registerLanguage('scala', scala);
-hljs.registerLanguage('shell', shell);
-hljs.registerLanguage('dockerfile', dockerfile);
-hljs.registerLanguage('plaintext', plaintext);
+
+// Lazy language loaders for other languages (loaded on first use)
+const languageLoaders: Record<string, () => Promise<any>> = {
+  xml: () => import('highlight.js/lib/languages/xml'),
+  css: () => import('highlight.js/lib/languages/css'),
+  diff: () => import('highlight.js/lib/languages/diff'),
+  python: () => import('highlight.js/lib/languages/python'),
+  go: () => import('highlight.js/lib/languages/go'),
+  rust: () => import('highlight.js/lib/languages/rust'),
+  java: () => import('highlight.js/lib/languages/java'),
+  cpp: () => import('highlight.js/lib/languages/cpp'),
+  c: () => import('highlight.js/lib/languages/c'),
+  csharp: () => import('highlight.js/lib/languages/csharp'),
+  ruby: () => import('highlight.js/lib/languages/ruby'),
+  php: () => import('highlight.js/lib/languages/php'),
+  sql: () => import('highlight.js/lib/languages/sql'),
+  yaml: () => import('highlight.js/lib/languages/yaml'),
+  toml: () => import('highlight.js/lib/languages/ini'),
+  swift: () => import('highlight.js/lib/languages/swift'),
+  kotlin: () => import('highlight.js/lib/languages/kotlin'),
+  scala: () => import('highlight.js/lib/languages/scala'),
+  shell: () => import('highlight.js/lib/languages/shell'),
+  dockerfile: () => import('highlight.js/lib/languages/dockerfile'),
+  plaintext: () => import('highlight.js/lib/languages/plaintext'),
+};
+
+const loadingLanguages = new Set<string>();
+const loadedLanguages = new Set<string>(['javascript', 'typescript', 'json', 'bash', 'markdown']);
+
+// Lazy load a language on demand
+async function ensureLanguageLoaded(lang: string): Promise<void> {
+  if (loadedLanguages.has(lang)) return;
+  if (loadingLanguages.has(lang)) {
+    // Wait for existing load to complete
+    while (loadingLanguages.has(lang)) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    return;
+  }
+
+  const loader = languageLoaders[lang];
+  if (!loader) return; // Unknown language, skip
+
+  loadingLanguages.add(lang);
+  try {
+    const module = await loader();
+    hljs.registerLanguage(lang, module.default);
+    loadedLanguages.add(lang);
+  } catch (err) {
+    console.warn(`Failed to load syntax highlighter for ${lang}:`, err);
+  } finally {
+    loadingLanguages.delete(lang);
+  }
+}
 
 const assistantMessageRawContent = new WeakMap<HTMLElement, string>();
 const TOKEN_PREFIX = '\uFFF0';
@@ -160,8 +174,26 @@ function highlightCodeBlock(codeEl: HTMLElement, lang?: string) {
   if (!raw) return;
   try {
     codeEl.classList.add('hljs');
-    if (lang && hljs.getLanguage(lang)) {
-      codeEl.innerHTML = hljs.highlight(raw, { language: lang }).value;
+    if (lang) {
+      // Lazy load language if needed, then highlight
+      if (!loadedLanguages.has(lang) && languageLoaders[lang]) {
+        ensureLanguageLoaded(lang).then(() => {
+          if (hljs.getLanguage(lang)) {
+            codeEl.innerHTML = hljs.highlight(raw, { language: lang }).value;
+          } else {
+            codeEl.innerHTML = hljs.highlightAuto(raw).value;
+          }
+        }).catch(() => {
+          codeEl.innerHTML = hljs.highlightAuto(raw).value;
+        });
+        // Show unhighlighted temporarily
+        codeEl.textContent = raw;
+        return;
+      } else if (hljs.getLanguage(lang)) {
+        codeEl.innerHTML = hljs.highlight(raw, { language: lang }).value;
+      } else {
+        codeEl.innerHTML = hljs.highlightAuto(raw).value;
+      }
     } else {
       codeEl.innerHTML = hljs.highlightAuto(raw).value;
     }
@@ -2654,7 +2686,7 @@ function renderWorkspaceChangesPanel(host: HTMLElement, snapshot: WorkspaceChang
       if (diffRes?.ok && typeof diffRes.diff === 'string') {
         try { (window as any).child?.switchTab?.('code'); } catch {}
         try {
-          await (window as any).viewer?.showText?.({ title: 'BrilliantCode Diff (all).diff', content: diffRes.diff });
+          await (window as any).viewer?.showText?.({ title: 'Cheri Diff (all).diff', content: diffRes.diff });
         } catch {}
       } else if (diffRes && typeof diffRes.error === 'string' && diffRes.error.trim()) {
         showToast(diffRes.error.trim(), 'error');
@@ -2753,7 +2785,7 @@ function renderWorkspaceChangesPanel(host: HTMLElement, snapshot: WorkspaceChang
         if (diffRes?.ok && typeof diffRes.diff === 'string') {
           try { (window as any).child?.switchTab?.('code'); } catch {}
           try {
-            await (window as any).viewer?.showText?.({ title: `BrilliantCode Diff - ${f.path}.diff`, content: diffRes.diff });
+            await (window as any).viewer?.showText?.({ title: `Cheri Diff - ${f.path}.diff`, content: diffRes.diff });
           } catch {}
         } else if (diffRes && typeof diffRes.error === 'string' && diffRes.error.trim()) {
           showToast(diffRes.error.trim(), 'error');

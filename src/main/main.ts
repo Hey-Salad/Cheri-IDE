@@ -31,6 +31,7 @@ import { McpHost, normalizeServerConfig } from './mcpHost.js';
 import * as apiKeys from '../services/api-keys.js';
 import * as versionCheck from '../services/version-check.js';
 import { setupAutoUpdater, checkForUpdates as checkAutoUpdates } from '../services/auto-updater.js';
+import { migrateUserData } from './migrate-user-data.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -350,7 +351,7 @@ function loadEnvironment(): void {
 hydrateProcessEnvFromUserShell();
 loadEnvironment();
 
-const BRAND_NAME = 'BrilliantCode';
+const BRAND_NAME = 'Cheri';
 const BRAND_SITE = 'https://brilliantai.co';
 const BRAND_ICON_PATH = path.join(__dirname, '../assets/branding/brilliant-ai-logo-small.png');
 let BRAND_ICON_IMAGE: Electron.NativeImage | null = null;
@@ -648,12 +649,64 @@ function resolveTerminalCwd(winId: number, requested?: string): { ok: boolean; c
   return { ok: true, cwd: resolved.abs };
 }
 
-function sendTerminalData(win: Electron.BrowserWindow, terminalId: string, data: string): void {
-  const payload = { terminalId, data };
+// Terminal write batching for IPC performance optimization
+interface TerminalWriteBuffer {
+  data: string[];
+  timer: NodeJS.Timeout | null;
+  totalBytes: number;
+}
+
+const terminalWriteBuffers = new Map<string, TerminalWriteBuffer>();
+const BATCH_FLUSH_DELAY_MS = 16; // 60fps
+const BATCH_SIZE_THRESHOLD_BYTES = 4096; // 4KB
+
+function getBufferKey(winId: number, terminalId: string): string {
+  return `${winId}:${terminalId}`;
+}
+
+function flushTerminalBuffer(win: Electron.BrowserWindow, terminalId: string): void {
+  if (win.isDestroyed()) return;
+
+  const bufferKey = getBufferKey(win.id, terminalId);
+  const buffer = terminalWriteBuffers.get(bufferKey);
+
+  if (!buffer || buffer.data.length === 0) return;
+
+  const combined = buffer.data.join('');
+  buffer.data = [];
+  buffer.totalBytes = 0;
+  buffer.timer = null;
+
+  const payload = { terminalId, data: combined };
   try { win.webContents.send('terminal:data', payload); } catch {}
   const child = childViews.get(win.id);
   if (child) {
     try { child.webContents.send('terminal:data', payload); } catch {}
+  }
+}
+
+function sendTerminalData(win: Electron.BrowserWindow, terminalId: string, data: string): void {
+  const bufferKey = getBufferKey(win.id, terminalId);
+  let buffer = terminalWriteBuffers.get(bufferKey);
+
+  if (!buffer) {
+    buffer = { data: [], timer: null, totalBytes: 0 };
+    terminalWriteBuffers.set(bufferKey, buffer);
+  }
+
+  buffer.data.push(data);
+  buffer.totalBytes += data.length;
+
+  if (buffer.timer) clearTimeout(buffer.timer);
+
+  // Flush immediately if buffer is large
+  if (buffer.totalBytes >= BATCH_SIZE_THRESHOLD_BYTES) {
+    flushTerminalBuffer(win, terminalId);
+  } else {
+    // Otherwise batch for 16ms (60fps)
+    buffer.timer = setTimeout(() => {
+      flushTerminalBuffer(win, terminalId);
+    }, BATCH_FLUSH_DELAY_MS);
   }
 }
 
@@ -968,7 +1021,7 @@ const getPromptCacheKey = async (): Promise<string> => {
   const seed = await getOrCreatePromptCacheSeed();
 
   // Hash to avoid sending raw identifiers.
-  promptCacheKeyMemo = toHexSha256(`brilliantcode:${seed}`);
+  promptCacheKeyMemo = toHexSha256(`cheri:${seed}`);
   return promptCacheKeyMemo;
 };
 
@@ -1370,7 +1423,7 @@ ipcMain.handle('mcp:disconnect', async (event: Electron.IpcMainInvokeEvent, name
 function getMcpUserConfigPath(): string | null {
   const home = process.env.HOME || process.env.USERPROFILE || '';
   if (!home) return null;
-  return path.join(home, '.brilliantcode', 'mcp.json');
+  return path.join(home, '.cheri', 'mcp.json');
 }
 
 function readJsonSafe(file: string): any {
@@ -1498,7 +1551,7 @@ async function createWelcomeWindow(): Promise<Electron.BrowserWindow> {
     minimizable: true,
     show: true,
     backgroundColor: '#080808',
-    title: 'Welcome to BrilliantCode',
+    title: 'Welcome to Cheri by HeySalad',
     autoHideMenuBar: true,
     icon: getBrandIcon(),
     webPreferences: {
@@ -1527,7 +1580,7 @@ async function createWelcomeWindow(): Promise<Electron.BrowserWindow> {
     }
   } catch (error) {
     console.error('Failed to load welcome page, showing fallback markup.', error);
-    const html = `<!doctype html><meta charset="utf-8"><title>Welcome</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0a0a0a;color:#fff;display:grid;place-items:center;height:100vh}main{max-width:520px;padding:32px;border-radius:14px;background:#111;border:1px solid rgba(255,255,255,0.08);box-shadow:0 20px 50px rgba(0,0,0,0.4);text-align:center}h1{font-size:22px;margin:0 0 12px}p{font-size:14px;color:#bbb;margin:0 0 18px}button{padding:10px 18px;border-radius:8px;border:none;background:#3b82f6;color:#fff;font-size:14px;cursor:pointer}button:disabled{opacity:0.6;cursor:not-allowed}</style><main><h1>Welcome to BrilliantCode</h1><p>The welcome page failed to load from disk. Use the Sign in button to continue.</p><button id="signin" type="button">Sign in</button><script>document.getElementById('signin').addEventListener('click',()=>{window.auth?.login?.();});</script></main>`;
+    const html = `<!doctype html><meta charset="utf-8"><title>Welcome</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0a0a0a;color:#fff;display:grid;place-items:center;height:100vh}main{max-width:520px;padding:32px;border-radius:14px;background:#111;border:1px solid rgba(255,255,255,0.08);box-shadow:0 20px 50px rgba(0,0,0,0.4);text-align:center}h1{font-size:22px;margin:0 0 12px}p{font-size:14px;color:#bbb;margin:0 0 18px}button{padding:10px 18px;border-radius:8px;border:none;background:#ed4c4c;color:#fff;font-size:14px;cursor:pointer}button:disabled{opacity:0.6;cursor:not-allowed}</style><main><h1>Welcome to Cheri</h1><p>The welcome page failed to load from disk. Use the Sign in button to continue.</p><button id="signin" type="button">Sign in</button><script>document.getElementById('signin').addEventListener('click',()=>{window.auth?.login?.();});</script></main>`;
     await win.loadURL('data:text/html;base64,' + Buffer.from(html).toString('base64'));
   }
 
@@ -1765,18 +1818,22 @@ async function createWindow() {
     win.show();
     win.focus();
     closeWelcomeWindow();
-    
-    // Initialize auto-updater after window is ready
-    setupAutoUpdater(win);
-    
-    // Check for updates after a short delay (let the app settle first)
+
+    // Defer auto-updater initialization to improve startup performance
     setTimeout(() => {
       if (!win.isDestroyed()) {
-        checkAutoUpdates().catch((err) => {
-          console.error('[auto-updater] Initial update check failed:', err);
-        });
+        setupAutoUpdater(win);
+
+        // Check for updates after setup completes
+        setTimeout(() => {
+          if (!win.isDestroyed()) {
+            checkAutoUpdates().catch((err) => {
+              console.error('[auto-updater] Initial update check failed:', err);
+            });
+          }
+        }, 3000);
       }
-    }, 5000);
+    }, 2000);
   });
 
   win.on('focus', () => {
@@ -2439,9 +2496,9 @@ ipcMain.on('ai:chatStream', async (ipcEvent: IpcMainEvent, payload: {
         if (!win) throw new Error('No window for sender');
 
         const modelFromOptions = options.model;
-        const fallbackModel = process.env.BRILLIANTCODE_DEFAULT_MODEL || process.env.AZURE_OPENAI_DEPLOYMENT;
+        const fallbackModel = process.env.CHERI_DEFAULT_MODEL || process.env.AZURE_OPENAI_DEPLOYMENT;
         const model = modelFromOptions || fallbackModel;
-        if (!model) throw new Error('Missing model (set BRILLIANTCODE_DEFAULT_MODEL or pass options.model)');
+        if (!model) throw new Error('Missing model (set CHERI_DEFAULT_MODEL or pass options.model)');
 
         // OpenAI and Anthropic use user-provided API keys (AI → API Keys…).
 
@@ -3209,6 +3266,19 @@ async function bootstrapApplication(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Migrate user data from .brilliantcode to .cheri (one-time on first launch)
+  try {
+    const migrationResult = await migrateUserData();
+    if (migrationResult.migrated) {
+      console.log('[App] User data migrated successfully from .brilliantcode to .cheri');
+    }
+    if (migrationResult.error) {
+      console.error('[App] Migration error:', migrationResult.error);
+    }
+  } catch (error) {
+    console.error('[App] Unexpected migration error:', error);
+  }
+
   try {
     app.setName(BRAND_NAME);
     if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
@@ -3233,7 +3303,7 @@ app.whenReady().then(async () => {
         applicationName: BRAND_NAME,
         applicationVersion: app.getVersion(),
         website: BRAND_SITE,
-        copyright: `© ${new Date().getFullYear()} Brilliant AI`,
+        copyright: `© ${new Date().getFullYear()} HeySalad Inc.`,
         iconPath: fsSync.existsSync(BRAND_ICON_PATH) ? BRAND_ICON_PATH : undefined,
       });
     }
@@ -3410,7 +3480,7 @@ ipcMain.handle('workspace:create-project', async (event: Electron.IpcMainInvokeE
   try { homeDir = os.homedir(); } catch {}
   if (!homeDir) return { ok: false, error: 'Unable to resolve home directory.' };
 
-  const baseDir = path.join(homeDir, 'brilliantcode_projects');
+  const baseDir = path.join(homeDir, 'cheri_projects');
   const projectPath = path.join(baseDir, sanitized);
 
   try {
@@ -4664,7 +4734,7 @@ These shortcuts work from anywhere in the app.`;
           dialog.showMessageBox({
             type: 'info',
             title: 'Keyboard Shortcuts',
-            message: 'BrilliantCode Keyboard Shortcuts',
+            message: 'Cheri Keyboard Shortcuts',
             detail: shortcutInfo,
             buttons: ['OK']
           });
