@@ -17,9 +17,9 @@ if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "arm64" ]; then
 fi
 
 # Version
-VERSION="1.0.2"
+VERSION="1.0.3"
 APPIMAGE_NAME="Cheri-${VERSION}-arm64.AppImage"
-DOWNLOAD_URL="https://github.com/Hey-Salad/cheri/releases/download/v${VERSION}/${APPIMAGE_NAME}"
+DOWNLOAD_URL="https://github.com/Hey-Salad/Cheri-IDE/releases/download/v${VERSION}/${APPIMAGE_NAME}"
 INSTALL_DIR="$HOME/.local/bin"
 DESKTOP_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor/512x512/apps"
