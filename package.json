@@ -97,7 +97,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hey-Salad/cheri.git"
+    "url": "git+https://github.com/Hey-Salad/Cheri-IDE.git"
   },
   "author": {
     "name": "HeySalad Inc.",
@@ -105,9 +105,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Hey-Salad/cheri/issues"
+    "url": "https://github.com/Hey-Salad/Cheri-IDE/issues"
   },
-  "homepage": "https://heysalad.co/cheri",
+  "homepage": "https://github.com/Hey-Salad/Cheri-IDE",
   "devDependencies": {
     "@electron-forge/cli": "^7.10.2",
     "@electron-forge/maker-deb": "^7.10.2",
