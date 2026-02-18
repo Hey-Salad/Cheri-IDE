@@ -52,6 +52,7 @@ module.exports = {
       { target: 'rpm', arch: ['x64', 'arm64'] },
     ],
     category: 'Utility',
-    maintainer: 'HeySalad Inc.'
+    maintainer: 'HeySalad Inc.',
+    icon: 'resources/cheri-512.png'
   }
 };

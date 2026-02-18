@@ -352,8 +352,8 @@ hydrateProcessEnvFromUserShell();
 loadEnvironment();
 
 const BRAND_NAME = 'Cheri';
-const BRAND_SITE = 'https://brilliantai.co';
-const BRAND_ICON_PATH = path.join(__dirname, '../assets/branding/brilliant-ai-logo-small.png');
+const BRAND_SITE = 'https://heysalad.co';
+const BRAND_ICON_PATH = path.join(__dirname, '../../resources/cheri-512.png');
 let BRAND_ICON_IMAGE: Electron.NativeImage | null = null;
 
 function getBrandIcon(): Electron.NativeImage | string | undefined {

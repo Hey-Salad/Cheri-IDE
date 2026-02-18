@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(new URL(import.meta.url)));
 export default defineConfig({
   root: path.resolve(__dirname, 'src/renderer'),
   base: './',
+  publicDir: false, // Disable default public dir
   server: { port: 5174, strictPort: true },
   build: {
     outDir: path.resolve(__dirname, 'dist/renderer'),

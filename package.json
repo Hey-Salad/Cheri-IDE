@@ -1,14 +1,15 @@
 {
   "name": "@heysalad/cheri",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "AI that remembers your code - by HeySalad",
   "main": "dist/main/main.js",
   "type": "module",
   "scripts": {
-    "build": "npm run build:main && npm run build:preload && npm run build:renderer && npm run build:copy-updater",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer && npm run build:copy-resources && npm run build:copy-updater",
     "build:main": "tsc -p tsconfig.main.json",
     "build:preload": "tsc -p tsconfig.preload.json && node scripts/rename-preload-to-cjs.cjs",
     "build:renderer": "cross-env ROLLUP_NO_NATIVE=1 NODE_OPTIONS=--max-old-space-size=4096 vite build --config vite.renderer.config.ts",
+    "build:copy-resources": "node scripts/copy-resources.cjs",
     "build:copy-updater": "node scripts/copy-dev-app-update.cjs",
     "start": "node scripts/run-forge.cjs start",
     "dev": "cross-env ELECTRON_RENDERER_URL=http://localhost:5174 NODE_ENV=development concurrently -k -r -s first --names \"main,preload,renderer,electron\" \"npm:dev:main\" \"npm:dev:preload\" \"npm:dev:renderer\" \"npm:dev:electron\"",
